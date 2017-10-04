@@ -1,0 +1,2 @@
+# frippy
+IRC Bot

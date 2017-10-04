@@ -1,4 +1,3 @@
-#![feature(proc_macro)]
 extern crate irc;
 #[macro_use]
 extern crate lazy_static;

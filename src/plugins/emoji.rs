@@ -13,9 +13,9 @@ impl Emoji {
         for emoji in self.return_emojis(&content) {
 
             names.push(match unicode_names::name(emoji) {
-                Some(v) => format!("{}", v).to_lowercase(),
-                None => format!("UNKNOWN"),
-            });
+                           Some(v) => format!("{}", v).to_lowercase(),
+                           None => format!("UNKNOWN"),
+                       });
         }
 
         server.send_privmsg(target, &names.join(", "))
@@ -59,7 +59,7 @@ impl Plugin for Emoji {
     fn execute(&mut self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
         match message.command {
             Command::PRIVMSG(ref target, ref content) => self.emoji(server, content, target),
-            _ => Ok(())
+            _ => Ok(()),
         }
     }
 }
@@ -75,14 +75,14 @@ mod tests {
 //
 //    #[test]
 //    fn emoji_message() {
-//        let     server = make_server("PRIVMSG test :😃\r\n");
+//        let     server = make_server("PRIVMSG test :emoji\r\n");
 //        let mut plugin  = Emoji::new();
 //
 //        server.for_each_incoming(|message| {
 //            assert!(plugin.execute(&server, &message).is_ok());
 //        }).unwrap();
 //
-//        assert_eq!("PRIVMSG test :smiling fce with open mouth\r\n", &*get_server_value(&server));
+//        assert_eq!("PRIVMSG test :emoji name\r\n", &*get_server_value(&server));
 //    }
 //
 //    #[test]

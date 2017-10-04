@@ -1,0 +1,14 @@
+owners = [""]
+nickname = "frippy"
+realname = "frippy"
+server = ""
+port = 6697
+encoding = "UTF-8"
+channels = [""]
+user_info = "IRC Bot"
+version = "irc:git:Rust"
+source = "https://github.com/Mavulp/frippy"
+ping_time = 180
+ping_timeout = 10
+burst_window_length = 8
+max_messages_in_burst = 15

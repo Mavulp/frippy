@@ -46,14 +46,14 @@ impl<'a> ConvertionRequest<'a> {
             Ok(mut response) => {
                 let mut body = String::new();
                 try_option!(response.read_to_string(&mut body).ok());
-                println!("{}", body);
 
                 let convertion_rates: Result<Value, _> = serde_json::from_str(&body);
                 match convertion_rates {
                     Ok(convertion_rates) => {
 
                         let rates: &Value = try_option!(convertion_rates.get("rates"));
-                        let target_rate: &Value = try_option!(rates.get(self.target.to_uppercase()));
+                        let target_rate: &Value =
+                            try_option!(rates.get(self.target.to_uppercase()));
                         Some(self.value * try_option!(target_rate.as_f64()))
                     }
                     Err(_) => None,

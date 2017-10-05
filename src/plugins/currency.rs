@@ -126,40 +126,40 @@ impl Plugin for Currency {
 
 #[cfg(test)]
 mod tests {
-    use tests::{make_server, get_server_value};
+    //use tests::{make_server, get_server_value};
 
-    use irc::client::prelude::*;
+    //use irc::client::prelude::*;
 
-    use plugin::Plugin;
-    use regex::Regex;
-    use super::Currency;
+    //use plugin::Plugin;
+    //use regex::Regex;
+    //use super::Currency;
 
-    #[test]
-    fn test_big_jpy_to_eur() {
-        let server = make_server("PRIVMSG test :5000000 JPY to EUR\r\n");
-        let mut plugin = Currency::new();
+    //#[test]
+    //fn test_big_jpy_to_eur() {
+    //    let server = make_server("PRIVMSG test :5000000 JPY to EUR\r\n");
+    //    let mut plugin = Currency::new();
 
-        for message in server.iter() {
-            let message = message.unwrap();
-            assert!(plugin.is_allowed(&server, &message));
-            assert!(plugin.execute(&server, &message).is_ok());
-        }
+    //    for message in server.iter() {
+    //        let message = message.unwrap();
+    //        assert!(plugin.is_allowed(&server, &message));
+    //        assert!(plugin.execute(&server, &message).is_ok());
+    //    }
 
-        let regex = Regex::new(r"=> ([0-9]{2})").unwrap();
-        let msg = get_server_value(&server);
-        let captures = regex.captures(&*msg).unwrap();
-        assert!(captures.at(0).is_some());
+    //    let regex = Regex::new(r"=> ([0-9]{2})").unwrap();
+    //    let msg = get_server_value(&server);
+    //    let captures = regex.captures(&*msg).unwrap();
+    //    assert!(captures.at(0).is_some());
 
-        let result = captures
-            .at(0)
-            .unwrap()
-            .split_whitespace()
-            .last()
-            .unwrap()
-            .parse::<i32>();
-        assert!(result.is_ok());
+    //    let result = captures
+    //        .at(0)
+    //        .unwrap()
+    //        .split_whitespace()
+    //        .last()
+    //        .unwrap()
+    //        .parse::<i32>();
+    //    assert!(result.is_ok());
 
-        let value = result.unwrap();
-        assert!(value > 10 && value < 100);
-    }
+    //    let value = result.unwrap();
+    //    assert!(value > 10 && value < 100);
+    //}
 }

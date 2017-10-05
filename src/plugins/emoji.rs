@@ -66,33 +66,33 @@ impl Plugin for Emoji {
 
 #[cfg(test)]
 mod tests {
-//    use ::tests::{make_server, get_server_value};
-//
-//    use irc::client::prelude::*;
-//
-//    use plugin::Plugin;
-//    use super::Emoji;
-//
-//    #[test]
-//    fn emoji_message() {
-//        let     server = make_server("PRIVMSG test :emoji\r\n");
-//        let mut plugin  = Emoji::new();
-//
-//        server.for_each_incoming(|message| {
-//            assert!(plugin.execute(&server, &message).is_ok());
-//        }).unwrap();
-//
-//        assert_eq!("PRIVMSG test :emoji name\r\n", &*get_server_value(&server));
-//    }
-//
-//    #[test]
-//    fn no_emoji_message() {
-//        let server = make_server("PRIVMSG test :test\r\n");
-//        let mut plugin = Emoji::new();
-//
-//        server.for_each_incoming(|message| {
-//            assert!(plugin.execute(&server, &message).is_ok());
-//        }).unwrap();
-//        assert_eq!("", &*get_server_value(&server));
-//    }
+    //use ::tests::{make_server, get_server_value};
+    //
+    //use irc::client::prelude::*;
+    //
+    //use plugin::Plugin;
+    //use super::Emoji;
+    //
+    //#[test]
+    //fn emoji_message() {
+    //    let     server = make_server("PRIVMSG test :emoji\r\n");
+    //    let mut plugin  = Emoji::new();
+    //
+    //    server.for_each_incoming(|message| {
+    //        assert!(plugin.execute(&server, &message).is_ok());
+    //    }).unwrap();
+    //
+    //    assert_eq!("PRIVMSG test :emoji name\r\n", &*get_server_value(&server));
+    //}
+    //
+    //#[test]
+    //fn no_emoji_message() {
+    //    let server = make_server("PRIVMSG test :test\r\n");
+    //    let mut plugin = Emoji::new();
+    //
+    //    server.for_each_incoming(|message| {
+    //        assert!(plugin.execute(&server, &message).is_ok());
+    //    }).unwrap();
+    //    assert_eq!("", &*get_server_value(&server));
+    //}
 }

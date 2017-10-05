@@ -16,7 +16,9 @@ pub fn run() {
     let server = IrcServer::new("config.toml").unwrap();
     server.identify().unwrap();
 
-    let plugins: Vec<Arc<Mutex<Plugin>>> = vec![Arc::new(Mutex::new(plugins::emoji::Emoji::new()))];
+    let plugins: Vec<Arc<Mutex<Plugin>>> =
+        vec![Arc::new(Mutex::new(plugins::emoji::Emoji::new())),
+             Arc::new(Mutex::new(plugins::currency::Currency::new()))];
 
     server
         .for_each_incoming(|message| {

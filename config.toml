@@ -1,14 +1,25 @@
-owners = [""]
+owners = []
 nickname = "frippy"
+#nick_password = ""
+alt_nicks = ["frippy_", "frippy__"]
 realname = "frippy"
-server = ""
+server = "irc.esper.net"
+#password = ""
 port = 6697
+use_ssl = true
+#cert_path = "cert.der"
 encoding = "UTF-8"
-channels = [""]
+channels = ["#frippy"]
+umodes = "+B"
 user_info = "IRC Bot"
-version = "irc:git:Rust"
+version = "frippy v0.1.0"
 source = "https://github.com/Mavulp/frippy"
-ping_time = 180
-ping_timeout = 10
-burst_window_length = 8
-max_messages_in_burst = 15
+#ping_time = 180
+#ping_timeout = 10
+#burst_window_length = 8
+#max_messages_in_burst = 15
+#should_ghost = false
+#ghost_sequence = []
+
+#[channel_keys]
+#"#frippy" = ""

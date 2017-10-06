@@ -1,3 +1,6 @@
+#![cfg_attr(feature="clippy", feature(plugin))]
+#![cfg_attr(feature="clippy", plugin(clippy))]
+
 extern crate irc;
 #[macro_use]
 extern crate lazy_static;
@@ -24,9 +27,9 @@ pub fn run() {
         .for_each_incoming(|message| {
             let message = Arc::new(message);
 
-            for plugin in plugins.clone().into_iter() {
+            for plugin in plugins.clone() {
                 let server = server.clone();
-                let message = message.clone();
+                let message = Arc::clone(&message);
 
                 spawn(move || {
                     let mut plugin = match plugin.lock() {

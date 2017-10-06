@@ -10,11 +10,11 @@ impl Emoji {
     fn emoji(&self, server: &IrcServer, content: &str, target: &str) -> Result<(), IrcError> {
 
         let mut names: Vec<String> = Vec::new();
-        for emoji in self.return_emojis(&content) {
+        for emoji in self.return_emojis(content) {
 
             names.push(match unicode_names::name(emoji) {
                            Some(v) => format!("{}", v).to_lowercase(),
-                           None => format!("UNKNOWN"),
+                           None => "UNKNOWN".to_string(),
                        });
         }
 

@@ -6,17 +6,14 @@ extern crate regex;
 use std::io::Read;
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
-use self::regex::Regex;
 use plugin::Plugin;
 use self::reqwest::Client;
 use self::reqwest::header::Connection;
 use self::serde_json::Value;
 
-register_plugin!(Currency);
+use PluginCommand;
 
-lazy_static! {
-    static ref RE: Regex = Regex::new(r"([0-9]+) ([A-Za-z]+) (?i)(to) ([A-Za-z]+)").unwrap();
-}
+register_plugin!(Currency);
 
 struct ConvertionRequest<'a> {
     value: f64,
@@ -65,61 +62,83 @@ impl<'a> ConvertionRequest<'a> {
 }
 
 impl Currency {
-    fn grep_request<'a>(&self, msg: &'a str) -> Option<ConvertionRequest<'a>> {
-        match RE.captures(msg) {
-            Some(captures) => {
-                Some(ConvertionRequest {
-                         value: {
-                             let capture = try_option!(captures.get(1)).as_str();
-                             try_option!(capture.parse().ok())
-                         },
-                         source: try_option!(captures.get(2)).as_str(),
-                         target: try_option!(captures.get(4)).as_str(), // 3 is to/TO
-                     })
+    fn eval_command<'a>(&self, tokens: &'a [String]) -> Option<ConvertionRequest<'a>> {
+        let parsed = match tokens[0].parse() {
+            Ok(v) => v,
+            Err(_) => {
+                return None;
             }
-            None => None,
-        }
+        };
+
+        Some(ConvertionRequest {
+                 value: parsed,
+                 source: &tokens[1],
+                 target: &tokens[2],
+             })
     }
 
-    fn convert(&self,
-               server: &IrcServer,
-               _: &Message,
-               target: &str,
-               msg: &str)
-               -> Result<(), IrcError> {
-        let request = match self.grep_request(msg) {
+    fn convert(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+        let request = match self.eval_command(&command.tokens) {
             Some(request) => request,
             None => {
-                return Ok(());
+                return self.invalid_command(server, &command);
             }
         };
 
         match request.send() {
             Some(response) => {
-                server.send_privmsg(target,
-                                    &*format!("{} {} => {:.4} {}",
-                                              request.value,
-                                              request.source,
-                                              response / 1.00000000,
-                                              request.target))
+                let response = format!("{} {} => {:.4} {}",
+                                       request.value,
+                                       request.source.to_lowercase(),
+                                       response / 1.00000000,
+                                       request.target.to_lowercase());
+
+                server.send_privmsg(&command.target, &response)
             }
-            None => server.send_privmsg(target, "Error while converting given currency"),
+            None => server.send_privmsg(&command.target, "Error while converting given currency"),
         }
+    }
+
+    fn help(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+        let usage = format!("usage: {} currency value from_currency to_currency",
+                            server.current_nickname());
+
+        if let Err(e) = server.send_notice(&command.source, &usage) {
+            return Err(e);
+        }
+        server.send_notice(&command.source, "example: 1.5 eur usd")
+    }
+
+    fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
+        let help = format!("Incorrect value. \
+                           Send \"{} help currency\" for help.",
+                           server.current_nickname());
+
+        server.send_notice(&command.source, &help)
     }
 }
 
 impl Plugin for Currency {
-    fn is_allowed(&self, _: &IrcServer, message: &Message) -> bool {
-        match message.command {
-            Command::PRIVMSG(_, ref msg) => RE.is_match(msg),
-            _ => false,
-        }
+    fn is_allowed(&self, _: &IrcServer, _: &Message) -> bool {
+        false
     }
 
-    fn execute(&mut self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
-        match message.command {
-            Command::PRIVMSG(ref target, ref msg) => self.convert(server, message, target, msg),
-            _ => Ok(()),
+    fn execute(&mut self, _: &IrcServer, _: &Message) -> Result<(), IrcError> {
+        Ok(())
+    }
+
+    fn command(&mut self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+        if command.tokens.is_empty() {
+            self.invalid_command(server, &command)
+
+        } else if command.tokens[0].to_lowercase() == "help" {
+            self.help(server, command)
+
+        } else if command.tokens.len() >= 3 {
+            self.convert(server, command)
+
+        } else {
+            self.invalid_command(server, &command)
         }
     }
 }

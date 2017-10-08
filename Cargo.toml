@@ -16,10 +16,10 @@ path = "src/lib.rs"
 [[bin]]
 name = "frippy"
 path = "bin/main.rs"
+doc = false
 
 [dependencies]
 irc             = "0.12.5"
-lazy_static     = "0.2.9"
 reqwest         = "0.8.0"
 regex           = "0.2.2"
 serde           = "1.0.15"

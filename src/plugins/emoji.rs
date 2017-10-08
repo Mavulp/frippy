@@ -1,8 +1,9 @@
+extern crate unicode_names;
+
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
 use plugin::Plugin;
-
-extern crate unicode_names;
+use PluginCommand;
 
 register_plugin!(Emoji);
 
@@ -12,10 +13,12 @@ impl Emoji {
         let mut names: Vec<String> = Vec::new();
         for emoji in self.return_emojis(content) {
 
-            names.push(match unicode_names::name(emoji) {
-                           Some(v) => format!("{}", v).to_lowercase(),
-                           None => "UNKNOWN".to_string(),
-                       });
+            let name = match unicode_names::name(emoji) {
+                Some(v) => format!("{}", v).to_lowercase(),
+                None => "UNKNOWN".to_string(),
+            };
+
+            names.push(name);
         }
 
         server.send_privmsg(target, &names.join(", "))
@@ -61,6 +64,11 @@ impl Plugin for Emoji {
             Command::PRIVMSG(ref target, ref content) => self.emoji(server, content, target),
             _ => Ok(()),
         }
+    }
+
+    fn command(&mut self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+        server.send_notice(&command.source,
+                           "This Plugin does not implement any commands.")
     }
 }
 

@@ -14,13 +14,7 @@ use irc::proto::Command::PRIVMSG;
 use irc::error::Error as IrcError;
 
 use plugin::Plugin;
-
-#[derive(Clone, Debug)]
-pub struct PluginCommand {
-    source: String,
-    target: String,
-    tokens: Vec<String>,
-}
+use plugin::PluginCommand;
 
 pub fn run() {
     let server = IrcServer::new("config.toml").unwrap();

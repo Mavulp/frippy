@@ -1,7 +1,6 @@
 use std::fmt;
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
-use PluginCommand;
 
 pub trait Plugin: Send + Sync + fmt::Display + fmt::Debug {
     fn is_allowed(&self, server: &IrcServer, message: &Message) -> bool;
@@ -9,7 +8,13 @@ pub trait Plugin: Send + Sync + fmt::Display + fmt::Debug {
     fn command(&mut self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError>;
 }
 
-#[macro_export]
+#[derive(Clone, Debug)]
+pub struct PluginCommand {
+    pub source: String,
+    pub target: String,
+    pub tokens: Vec<String>,
+}
+
 macro_rules! register_plugin {
     ($t:ident) => {
         use std::fmt;

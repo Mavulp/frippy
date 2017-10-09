@@ -4,6 +4,7 @@ version = "0.1.0"
 dependencies = [
  "clippy 0.0.165 (registry+https://github.com/rust-lang/crates.io-index)",
  "irc 0.12.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "lazy_static 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "reqwest 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.15 (registry+https://github.com/rust-lang/crates.io-index)",

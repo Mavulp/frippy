@@ -1,7 +1,11 @@
 #![cfg_attr(feature="clippy", feature(plugin))]
 #![cfg_attr(feature="clippy", plugin(clippy))]
 
+#[macro_use]
+extern crate lazy_static;
+
 extern crate irc;
+extern crate regex;
 
 #[macro_use]
 mod plugin;
@@ -9,6 +13,7 @@ mod plugins;
 
 use std::thread::spawn;
 use std::sync::{Arc, Mutex};
+use regex::Regex;
 use irc::client::prelude::*;
 use irc::proto::Command::PRIVMSG;
 use irc::error::Error as IrcError;
@@ -98,7 +103,17 @@ fn get_command(nick: &str, message: &Message) -> Option<PluginCommand> {
             return None;
         }
 
+        lazy_static! {
+            static ref RE: Regex = Regex::new("^[:,]*?$").unwrap();
+        }
+
         if tokens[0].to_lowercase().starts_with(nick) {
+            tokens[0].drain(..nick.len());
+
+            if !RE.is_match(&tokens[0]) {
+                return None;
+            }
+
             tokens.remove(0);
 
             Some(PluginCommand {

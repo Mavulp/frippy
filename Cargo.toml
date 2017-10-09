@@ -26,6 +26,6 @@ lazy_static     = "0.2.9"
 serde           = "1.0.15"
 serde_json      = "1.0.3"
 
-unicode_names = { git = 'https://github.com/antifuchs/unicode_names', branch = 'fix-for-rust-1-10' }
+unicode_names = { git = 'https://github.com/Jokler/unicode_names', branch = 'update-to-latest-unicode' }
 
 clippy = {version = "*", optional = true}

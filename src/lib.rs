@@ -131,21 +131,4 @@ fn get_command(nick: &str, message: &Message) -> Option<PluginCommand> {
 
 #[cfg(test)]
 mod tests {
-    use irc::client::prelude::*;
-
-    pub fn make_server(cmd: &str) -> IrcServer {
-        let config = Config {
-            nickname: Some(format!("test")),
-            server: Some(format!("irc.test.net")),
-            channels: Some(vec![format!("#test")]),
-            use_mock_connection: Some(true),
-            ..Default::default()
-        };
-
-        IrcServer::from_config(config).unwrap()
-    }
-
-    pub fn get_server_value(server: &IrcServer) -> String {
-        unimplemented!();
-    }
 }

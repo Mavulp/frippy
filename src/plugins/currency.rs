@@ -95,7 +95,7 @@ impl Currency {
 
                 server.send_privmsg(&command.target, &response)
             }
-            None => server.send_privmsg(&command.target, "Error while converting given currency"),
+            None => server.send_notice(&command.source, "Error while converting given currency"),
         }
     }
 

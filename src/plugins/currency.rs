@@ -62,7 +62,6 @@ impl<'a> ConvertionRequest<'a> {
 }
 
 impl Currency {
-
     pub fn new() -> Currency {
         Currency {}
     }

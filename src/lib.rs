@@ -31,6 +31,16 @@ use irc::error::Error as IrcError;
 
 use plugin::*;
 
+// Lock the mutex and ignore if it is poisoned
+macro_rules! lock_plugin {
+    ($e:expr) => {
+        match $e.lock() {
+            Ok(plugin) => plugin,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+}
+
 /// Runs the bot
 ///
 /// # Remarks
@@ -80,35 +90,36 @@ pub fn run() {
             }
 
             for plugin in plugins.clone() {
-                // Clone everything before the move
-                let server = server.clone();
-                let message = Arc::clone(&message);
-                let command = command.clone();
+                // Send the message to the plugin if the plugin needs it
+                if lock_plugin!(plugin).is_allowed(&server, &message) {
 
-                // Spawn a new thread for each plugin
-                spawn(move || {
-                    // Lock the mutex and ignore if it is poisoned
-                    let mut plugin = match plugin.lock() {
-                        Ok(plugin) => plugin,
-                        Err(poisoned) => poisoned.into_inner(),
-                    };
+                    // Clone everything before the move
+                    // The server uses an Arc internally too
+                    let plugin = Arc::clone(&plugin);
+                    let message = Arc::clone(&message);
+                    let server = server.clone();
 
-                    // Send the message to the plugin if the plugin needs it
-                    if plugin.is_allowed(&server, &message) {
-                        plugin.execute(&server, &message).unwrap();
+                    // Execute the plugin in another thread
+                    spawn(move || { lock_plugin!(plugin).execute(&server, &message).unwrap(); });
+                }
+
+                // Check if the command is for this plugin
+                // Clone it for the move
+                if let Some(mut c) = command.clone() {
+
+                    // Skip empty commands
+                    if c.tokens.is_empty() { continue; }
+
+                    if lock_plugin!(plugin).name().to_lowercase() == c.tokens[0].to_lowercase() {
+
+                        // The first token contains the name of the plugin
+                        c.tokens.remove(0);
+
+                        // Clone the server for the move - it uses an Arc internally
+                        let server = server.clone();
+                        spawn(move || { lock_plugin!(plugin).command(&server, c).unwrap(); });
                     }
-
-                    // Check if the command is for this plugin
-                    if let Some(mut c) = command {
-                        if !c.tokens.is_empty() &&
-                           plugin.name().to_lowercase() == c.tokens[0].to_lowercase() {
-
-                            // The first token contains the name of the plugin
-                            c.tokens.remove(0);
-                            plugin.command(&server, c).unwrap();
-                        }
-                    }
-                });
+                }
             }
         })
         .unwrap();

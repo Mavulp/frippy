@@ -1,6 +1,16 @@
 #![cfg_attr(feature="clippy", feature(plugin))]
 #![cfg_attr(feature="clippy", plugin(clippy))]
 
+//! Frippy is an IRC bot that runs plugins on each message
+//! received.
+//!
+//! # Example
+//! ```no_run
+//! extern crate frippy;
+//!
+//! frippy::run();
+//! ```
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -21,6 +31,11 @@ use irc::error::Error as IrcError;
 use plugin::Plugin;
 use plugin::PluginCommand;
 
+/// Runs the bot
+///
+/// # Remarks
+///
+/// This blocks the current thread while the bot is running
 pub fn run() {
     let server = IrcServer::new("config.toml").unwrap();
     server.identify().unwrap();

@@ -13,11 +13,12 @@
 
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate plugin_derive;
 
 extern crate irc;
 extern crate regex;
 
-#[macro_use]
 mod plugin;
 mod plugins;
 
@@ -28,8 +29,7 @@ use irc::client::prelude::*;
 use irc::proto::Command::PRIVMSG;
 use irc::error::Error as IrcError;
 
-use plugin::Plugin;
-use plugin::PluginCommand;
+use plugin::*;
 
 /// Runs the bot
 ///
@@ -49,7 +49,7 @@ pub fn run() {
     // if they use an incorrect plugin name
     let plugin_names: Vec<String> = plugins
         .iter()
-        .map(|p| p.lock().unwrap().to_string().to_lowercase())
+        .map(|p| p.lock().unwrap().name().to_lowercase())
         .collect();
 
     // The main loop over received messages
@@ -101,7 +101,7 @@ pub fn run() {
                     // Check if the command is for this plugin
                     if let Some(mut c) = command {
                         if !c.tokens.is_empty() &&
-                           plugin.to_string().to_lowercase() == c.tokens[0].to_lowercase() {
+                           plugin.name().to_lowercase() == c.tokens[0].to_lowercase() {
 
                             // The first token contains the name of the plugin
                             c.tokens.remove(0);

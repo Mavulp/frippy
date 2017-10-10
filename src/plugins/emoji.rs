@@ -2,12 +2,16 @@ extern crate unicode_names;
 
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
-use plugin::Plugin;
-use PluginCommand;
 
-register_plugin!(Emoji);
+use plugin::*;
 
+#[derive(PluginName, Debug)]
+pub struct Emoji;
 impl Emoji {
+    pub fn new() -> Emoji {
+        Emoji {}
+    }
+
     fn emoji(&self, server: &IrcServer, content: &str, target: &str) -> Result<(), IrcError> {
 
         let mut names: Vec<String> = Vec::new();
@@ -73,5 +77,4 @@ impl Plugin for Emoji {
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

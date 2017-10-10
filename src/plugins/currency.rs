@@ -6,14 +6,14 @@ extern crate regex;
 use std::io::Read;
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
-use plugin::Plugin;
 use self::reqwest::Client;
 use self::reqwest::header::Connection;
 use self::serde_json::Value;
 
-use PluginCommand;
+use plugin::*;
 
-register_plugin!(Currency);
+#[derive(PluginName, Debug)]
+pub struct Currency;
 
 struct ConvertionRequest<'a> {
     value: f64,
@@ -62,6 +62,11 @@ impl<'a> ConvertionRequest<'a> {
 }
 
 impl Currency {
+
+    pub fn new() -> Currency {
+        Currency {}
+    }
+
     fn eval_command<'a>(&self, tokens: &'a [String]) -> Option<ConvertionRequest<'a>> {
         let parsed = match tokens[0].parse() {
             Ok(v) => v,
@@ -144,5 +149,4 @@ impl Plugin for Currency {
 }
 
 #[cfg(test)]
-mod tests {
-}
+mod tests {}

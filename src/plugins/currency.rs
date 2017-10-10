@@ -104,13 +104,16 @@ impl Currency {
     }
 
     fn help(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
-        let usage = format!("usage: {} currency value from_currency to_currency",
+        let help = format!("usage: {} currency value from_currency to_currency\r\n\
+                            example: 1.5 eur usd\r\n\
+                            available currencies: AUD, BGN, BRL, CAD, \
+                            CHF, CNY, CZK, DKK, GBP, HKD, HRK, HUF, \
+                            IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \
+                            NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, \
+                            TRY, USD, ZAR",
                             server.current_nickname());
 
-        if let Err(e) = server.send_notice(&command.source, &usage) {
-            return Err(e);
-        }
-        server.send_notice(&command.source, "example: 1.5 eur usd")
+        server.send_notice(&command.source, &help)
     }
 
     fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {

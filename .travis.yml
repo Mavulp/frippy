@@ -6,3 +6,11 @@ rust:
 matrix:
   allow_failures:
     - rust: nightly
+
+notifications:
+  email: false
+  irc:
+    channels:
+      - "ircs://irc.esper.net:6697#frippy"
+    use_notice: true
+    skip_join: true

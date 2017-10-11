@@ -42,6 +42,8 @@ impl Emoji {
     }
 
     fn is_emoji(&self, c: &char) -> bool {
+        // Emoji ranges from stackoverflow:
+        // https://stackoverflow.com/questions/30757193/find-out-if-character-in-string-is-emoji
         match *c { '\u{1F600}'...'\u{1F64F}'     // Emoticons
             | '\u{1F300}'...'\u{1F5FF}'          // Misc Symbols and Pictographs
             | '\u{1F680}'...'\u{1F6FF}'          // Transport and Map

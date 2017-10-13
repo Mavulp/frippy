@@ -137,11 +137,6 @@ fn get_command(nick: &str, message: &Message) -> Option<PluginCommand> {
             .map(ToOwned::to_owned)
             .collect();
 
-        // Check if the message contained nothing but spaces
-        if tokens.is_empty() {
-            return None;
-        }
-
         // Commands start with our name
         if tokens[0].to_lowercase().starts_with(nick) {
 

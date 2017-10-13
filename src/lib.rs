@@ -12,8 +12,6 @@
 //! ```
 
 #[macro_use]
-extern crate lazy_static;
-#[macro_use]
 extern crate plugin_derive;
 
 extern crate irc;
@@ -24,7 +22,6 @@ mod plugins;
 
 use std::thread::spawn;
 use std::sync::{Arc, Mutex};
-use regex::Regex;
 use irc::client::prelude::*;
 use irc::proto::Command::PRIVMSG;
 use irc::error::Error as IrcError;
@@ -141,24 +138,21 @@ fn get_command(nick: &str, message: &Message) -> Option<PluginCommand> {
             .map(ToOwned::to_owned)
             .collect();
 
-        // Check if the message contained notthing but spaces
+        // Check if the message contained nothing but spaces
         if tokens.is_empty() {
             return None;
         }
 
-        // Only compile the regex once
-        // We assume that only ':' and ',' are used as suffixes on IRC
-        lazy_static! {
-            static ref RE: Regex = Regex::new("^[:,]*?$").unwrap();
-        }
-
+        // Commands start with our name
         if tokens[0].to_lowercase().starts_with(nick) {
 
             // Remove the bot's name from the first token
             tokens[0].drain(..nick.len());
 
-            // If the regex does not match the message is not directed at the bot
-            if !RE.is_match(&tokens[0]) {
+            // We assume that only ':' and ',' are used as suffixes on IRC
+            // If there are any other chars we assume that it is not ment for the bot
+            tokens[0] = tokens[0].chars().filter(|&c| !":,".contains(c)).collect();
+            if !tokens[0].is_empty() {
                 return None;
             }
 

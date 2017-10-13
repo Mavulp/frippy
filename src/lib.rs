@@ -134,7 +134,6 @@ fn get_command(nick: &str, message: &Message) -> Option<PluginCommand> {
         // Split content by spaces and filter empty tokens
         let mut tokens: Vec<String> = content
             .split(' ')
-            .filter(|&x| !x.is_empty())
             .map(ToOwned::to_owned)
             .collect();
 

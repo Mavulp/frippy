@@ -95,6 +95,7 @@ fn main() {
         bot.add_plugin(plugins::Emoji::new());
         bot.add_plugin(plugins::Currency::new());
         bot.add_plugin(plugins::KeepNick::new());
+        bot.add_plugin(plugins::Factoids::new());
 
         if let Some(disabled_plugins) = disabled_plugins {
             for name in disabled_plugins {

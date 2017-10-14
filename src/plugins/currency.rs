@@ -82,6 +82,11 @@ impl Currency {
     }
 
     fn convert(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+
+        if command.tokens.len() < 3 {
+            return self.invalid_command(server, &command);
+        }
+
         let request = match self.eval_command(&command.tokens) {
             Some(request) => request,
             None => {
@@ -103,7 +108,7 @@ impl Currency {
         }
     }
 
-    fn help(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn help(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
         let help = format!("usage: {} currency value from_currency to_currency\r\n\
                             example: 1.5 eur usd\r\n\
                             available currencies: AUD, BGN, BRL, CAD, \
@@ -117,7 +122,7 @@ impl Currency {
     }
 
     fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
-        let help = format!("Incorrect value. \
+        let help = format!("Incorrect Command. \
                            Send \"{} help currency\" for help.",
                            server.current_nickname());
 
@@ -134,18 +139,15 @@ impl Plugin for Currency {
         Ok(())
     }
 
-    fn command(&mut self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&mut self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
+
         if command.tokens.is_empty() {
-            self.invalid_command(server, &command)
+            return self.invalid_command(server, &command);
+        }
 
-        } else if command.tokens[0].to_lowercase() == "help" {
-            self.help(server, command)
-
-        } else if command.tokens.len() >= 3 {
-            self.convert(server, command)
-
-        } else {
-            self.invalid_command(server, &command)
+        match command.tokens[0].as_ref() {
+            "help" => self.help(server, &mut command),
+            _ => self.convert(server, command),
         }
     }
 }

@@ -105,7 +105,9 @@ pub fn run() {
                 if let Some(mut c) = command.clone() {
 
                     // Skip empty commands
-                    if c.tokens.is_empty() { continue; }
+                    if c.tokens.is_empty() {
+                        continue;
+                    }
 
                     if lock_plugin!(plugin).name().to_lowercase() == c.tokens[0].to_lowercase() {
 
@@ -132,10 +134,7 @@ fn get_command(nick: &str, message: &Message) -> Option<PluginCommand> {
     if let PRIVMSG(_, ref content) = message.command {
 
         // Split content by spaces and filter empty tokens
-        let mut tokens: Vec<String> = content
-            .split(' ')
-            .map(ToOwned::to_owned)
-            .collect();
+        let mut tokens: Vec<String> = content.split(' ').map(ToOwned::to_owned).collect();
 
         // Commands start with our name
         if tokens[0].to_lowercase().starts_with(nick) {
@@ -145,7 +144,10 @@ fn get_command(nick: &str, message: &Message) -> Option<PluginCommand> {
 
             // We assume that only ':' and ',' are used as suffixes on IRC
             // If there are any other chars we assume that it is not ment for the bot
-            tokens[0] = tokens[0].chars().filter(|&c| !":,".contains(c)).collect();
+            tokens[0] = tokens[0]
+                .chars()
+                .filter(|&c| !":,".contains(c))
+                .collect();
             if !tokens[0].is_empty() {
                 return None;
             }

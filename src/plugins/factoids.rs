@@ -1,6 +1,9 @@
+extern crate rlua;
 
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
+use self::rlua::Lua;
+
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -40,18 +43,48 @@ impl Factoids {
     }
 
     fn get(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
+
         if command.tokens.len() < 1 {
             self.invalid_command(server, command)
 
         } else {
+            let name = &command.tokens[0];
             let factoids = try_lock!(self.factoids);
-            let factoid = match factoids.get(&command.tokens[0]) {
+            let factoid = match factoids.get(name) {
                 Some(v) => v,
                 None => return self.invalid_command(server, command),
             };
 
-            server.send_privmsg(&command.target, factoid)
+            server.send_privmsg(&command.target, &format!("{}: {}", name, factoid))
         }
+    }
+
+    fn exec(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
+
+        if command.tokens.len() < 1 {
+            self.invalid_command(server, command)
+
+        } else {
+            let name = &command.tokens[0];
+
+            let factoids = try_lock!(self.factoids);
+            let factoid = match factoids.get(name) {
+                Some(v) => v,
+                None => return self.invalid_command(server, command),
+            };
+
+            let value = match self.run_lua(name, factoid) {
+                Ok(v) => v,
+                Err(e) => format!("{}", e),
+            };
+
+            server.send_privmsg(&command.target, &value)
+        }
+    }
+
+    fn run_lua(&self, name: &str, code: &str) -> Result<String, rlua::Error> {
+        let lua = Lua::new();
+        lua.eval::<String>(code, Some(name))
     }
 
     fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
@@ -61,28 +94,25 @@ impl Factoids {
 
 impl Plugin for Factoids {
     fn is_allowed(&self, _: &IrcServer, message: &Message) -> bool {
-            match message.command {
-                Command::PRIVMSG(_, ref content) => content.starts_with('!'),
-                _ => false,
-            }
+        match message.command {
+            Command::PRIVMSG(_, ref content) => content.starts_with('!'),
+            _ => false,
+        }
     }
 
     fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
         if let Command::PRIVMSG(_, mut content) = message.command.clone() {
             content.remove(0);
 
-            let t: Vec<String> = content
-                .split(' ')
-                .map(ToOwned::to_owned)
-                .collect();
+            let t: Vec<String> = content.split(' ').map(ToOwned::to_owned).collect();
 
-            let c = PluginCommand {
+            let mut c = PluginCommand {
                 source: message.source_nickname().unwrap().to_string(),
                 target: message.response_target().unwrap().to_string(),
                 tokens: t,
             };
 
-            self.get(server, &c)
+            self.exec(server, &mut c)
 
         } else {
             Ok(())
@@ -91,18 +121,15 @@ impl Plugin for Factoids {
 
     fn command(&self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
         if command.tokens.is_empty() {
-            self.invalid_command(server, &command)
+            return self.invalid_command(server, &command);
+        }
 
-        } else if command.tokens[0].to_lowercase() == "add" {
-            command.tokens.remove(0);
-            self.add(server, &mut command)
-
-        } else if command.tokens[0].to_lowercase() == "get" {
-            command.tokens.remove(0);
-            self.get(server, &command)
-
-        } else {
-            self.invalid_command(server, &command)
+        let sub_command = command.tokens.remove(0);
+        match sub_command.as_ref() {
+            "add" => self.add(server, &mut command),
+            "get" => self.get(server, &mut command),
+            "exec" => self.exec(server, &mut command),
+            _ => self.invalid_command(server, &command),
         }
     }
 }

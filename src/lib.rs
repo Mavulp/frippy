@@ -108,7 +108,7 @@ pub fn run() {
         };
 
         match server.identify() {
-            Ok(_) => info!("Intentified"),
+            Ok(_) => info!("Identified"),
             Err(e) => error!("Failed to identify: {}", e),
         };
 

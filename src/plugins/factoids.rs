@@ -1,8 +1,8 @@
 extern crate rlua;
 
+use self::rlua::prelude::*;
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
-use self::rlua::Lua;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -22,6 +22,8 @@ macro_rules! try_lock {
         }
     }
 }
+
+static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
 impl Factoids {
     pub fn new() -> Factoids {
@@ -59,21 +61,21 @@ impl Factoids {
         }
     }
 
-    fn exec(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
+    fn exec(&self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
 
         if command.tokens.len() < 1 {
-            self.invalid_command(server, command)
+            self.invalid_command(server, &command)
 
         } else {
-            let name = &command.tokens[0];
+            let name = command.tokens.remove(0);
 
             let factoids = try_lock!(self.factoids);
-            let factoid = match factoids.get(name) {
+            let factoid = match factoids.get(&name) {
                 Some(v) => v,
-                None => return self.invalid_command(server, command),
+                None => return self.invalid_command(server, &command),
             };
 
-            let value = match self.run_lua(name, factoid) {
+            let value = match self.run_lua(&name, factoid, &command) {
                 Ok(v) => v,
                 Err(e) => format!("{}", e),
             };
@@ -82,9 +84,33 @@ impl Factoids {
         }
     }
 
-    fn run_lua(&self, name: &str, code: &str) -> Result<String, rlua::Error> {
+    fn run_lua(&self,
+               name: &str,
+               code: &str,
+               command: &PluginCommand)
+               -> Result<String, rlua::Error> {
+
+        let args = command
+            .tokens
+            .iter()
+            .filter(|x| !x.is_empty())
+            .map(ToOwned::to_owned)
+            .collect::<Vec<String>>();
+
         let lua = Lua::new();
-        lua.eval::<String>(code, Some(name))
+        let globals = lua.globals();
+
+        globals.set("factoid", lua.load(code, Some(name))?)?;
+        globals.set("args", args)?;
+        globals.set("input", command.tokens.join(" "))?;
+        globals.set("user", command.source.clone())?;
+        globals.set("channel", command.target.clone())?;
+        globals.set("output", lua.create_table())?;
+
+        lua.exec::<()>(LUA_SANDBOX, Some(name))?;
+        let output: Vec<String> = globals.get::<_, Vec<String>>("output")?;
+
+        Ok(output.join("|"))
     }
 
     fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
@@ -106,13 +132,13 @@ impl Plugin for Factoids {
 
             let t: Vec<String> = content.split(' ').map(ToOwned::to_owned).collect();
 
-            let mut c = PluginCommand {
+            let c = PluginCommand {
                 source: message.source_nickname().unwrap().to_string(),
                 target: message.response_target().unwrap().to_string(),
                 tokens: t,
             };
 
-            self.exec(server, &mut c)
+            self.exec(server, c)
 
         } else {
             Ok(())
@@ -127,8 +153,8 @@ impl Plugin for Factoids {
         let sub_command = command.tokens.remove(0);
         match sub_command.as_ref() {
             "add" => self.add(server, &mut command),
-            "get" => self.get(server, &mut command),
-            "exec" => self.exec(server, &mut command),
+            "get" => self.get(server, &command),
+            "exec" => self.exec(server, command),
             _ => self.invalid_command(server, &command),
         }
     }

@@ -94,7 +94,13 @@ pub fn run() {
 
     // Open a connection and add work for each config
     for config in configs {
-        let fut = IrcServer::new_future(reactor.handle(), &config).unwrap();
+        let fut = match IrcServer::new_future(reactor.handle(), &config) {
+            Ok(v) => v,
+            Err(e) => {
+                error!("Failed to connect: {}", e);
+                return;
+            }
+        };
 
         let server = match reactor.run(fut) {
             Ok(v) => {

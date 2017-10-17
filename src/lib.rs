@@ -64,7 +64,7 @@ pub fn run() {
                     Ok(v) => configs.push(v),
                     Err(e) => error!("Incorrect config file {}", e),
                 }
-            },
+            }
             Err(e) => error!("Failed to read path {}", e),
         }
     }
@@ -94,24 +94,16 @@ pub fn run() {
 
     // Open a connection and add work for each config
     for config in configs {
-        let fut = match IrcServer::new_future(reactor.handle(), &config) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Failed to connect: {}", e);
-                return;
-            }
-        };
+        let server =
+            match IrcServer::new_future(reactor.handle(), &config).and_then(|f| reactor.run(f)) {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("Failed to connect: {}", e);
+                    return;
+                }
+            };
 
-        let server = match reactor.run(fut) {
-            Ok(v) => {
-                info!("Connected to server");
-                v
-            }
-            Err(e) => {
-                error!("Failed to connect: {}", e);
-                return;
-            }
-        };
+        info!("Connected to server");
 
         match server.identify() {
             Ok(_) => info!("Identified"),
@@ -125,7 +117,7 @@ pub fn run() {
         let task = server
             .stream()
             .for_each(move |message| process_msg(&server, &plugin_names, plugins.clone(), message))
-            .map_err(|e| Err(e).unwrap());
+            .map_err(|e| error!("Failed to process message: {}", e));
 
         reactor.handle().spawn(task);
     }
@@ -154,10 +146,10 @@ fn process_msg(server: &IrcServer,
     if let Some(ref c) = command {
         if c.tokens.is_empty() {
             let help = format!("Use \"{} help\" to get help", server.current_nickname());
-            server.send_notice(&c.source, &help).unwrap();
+            server.send_notice(&c.source, &help)?;
 
         } else if "help" == &c.tokens[0].to_lowercase() {
-            send_help_message(server, c).unwrap();
+            send_help_message(server, c)?;
 
         } else if !plugin_names.contains(&c.tokens[0].to_lowercase()) {
 
@@ -166,7 +158,7 @@ fn process_msg(server: &IrcServer,
                                server.current_nickname(),
                                c.tokens[0]);
 
-            server.send_notice(&c.source, &help).unwrap();
+            server.send_notice(&c.source, &help)?;
         }
     }
 
@@ -181,7 +173,12 @@ fn process_msg(server: &IrcServer,
             let server = server.clone();
 
             // Execute the plugin in another thread
-            spawn(move || { lock_plugin!(plugin).execute(&server, &message).unwrap(); });
+            spawn(move || {
+                if let Err(e) = lock_plugin!(plugin).execute(&server, &message) {
+                    let name = lock_plugin!(plugin).name().to_string();
+                    error!("Error in {} - {}", name, e);
+                };
+            });
         }
 
         // Check if the command is for this plugin

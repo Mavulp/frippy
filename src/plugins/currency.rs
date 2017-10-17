@@ -67,12 +67,7 @@ impl Currency {
     }
 
     fn eval_command<'a>(&self, tokens: &'a [String]) -> Option<ConvertionRequest<'a>> {
-        let parsed = match tokens[0].parse() {
-            Ok(v) => v,
-            Err(_) => {
-                return None;
-            }
-        };
+        let parsed = tokens[0].parse().ok()?;
 
         Some(ConvertionRequest {
                  value: parsed,

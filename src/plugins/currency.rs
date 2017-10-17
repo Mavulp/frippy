@@ -67,13 +67,15 @@ impl Currency {
     }
 
     fn eval_command<'a>(&self, tokens: &'a [String]) -> Option<ConvertionRequest<'a>> {
-        let parsed = tokens[0].parse().ok()?;
-
-        Some(ConvertionRequest {
-                 value: parsed,
-                 source: &tokens[1],
-                 target: &tokens[2],
-             })
+        if let Some(parsed) = tokens[0].parse().ok() {
+            Some(ConvertionRequest {
+                value: parsed,
+                source: &tokens[1],
+                target: &tokens[2],
+            })
+        } else {
+            None
+        }
     }
 
     fn convert(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {

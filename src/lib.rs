@@ -141,7 +141,9 @@ fn process_msg(server: &IrcServer,
                -> Result<(), IrcError> {
 
     if let Command::JOIN(ref channel, _, _) = message.command {
-        info!("Joined {}", channel);
+        if message.source_nickname().unwrap() == server.current_nickname() {
+            info!("Joined {}", channel);
+        }
     }
 
     let message = Arc::new(message);

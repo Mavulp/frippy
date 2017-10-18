@@ -4,8 +4,11 @@ extern crate serde_json;
 extern crate regex;
 
 use std::io::Read;
+use std::num::ParseFloatError;
+
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
+
 use self::reqwest::Client;
 use self::reqwest::header::Connection;
 use self::serde_json::Value;
@@ -66,16 +69,12 @@ impl Currency {
         Currency {}
     }
 
-    fn eval_command<'a>(&self, tokens: &'a [String]) -> Option<ConvertionRequest<'a>> {
-        if let Some(parsed) = tokens[0].parse().ok() {
-            Some(ConvertionRequest {
-                value: parsed,
-                source: &tokens[1],
-                target: &tokens[2],
-            })
-        } else {
-            None
-        }
+    fn eval_command<'a>(&self, tokens: &'a [String]) -> Result<ConvertionRequest<'a>, ParseFloatError> {
+        Ok(ConvertionRequest {
+            value: tokens[0].parse()?,
+            source: &tokens[1],
+            target: &tokens[2],
+        })
     }
 
     fn convert(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
@@ -85,8 +84,8 @@ impl Currency {
         }
 
         let request = match self.eval_command(&command.tokens) {
-            Some(request) => request,
-            None => {
+            Ok(request) => request,
+            Err(_) => {
                 return self.invalid_command(server, &command);
             }
         };

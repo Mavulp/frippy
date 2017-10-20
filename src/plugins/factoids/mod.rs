@@ -110,7 +110,7 @@ impl Factoids {
         lua.exec::<()>(LUA_SANDBOX, Some(name))?;
         let output: Vec<String> = globals.get::<_, Vec<String>>("output")?;
 
-        Ok(output.join("|"))
+        Ok(output.join("|").replace("\n", "|"))
     }
 
     fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {

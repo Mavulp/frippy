@@ -67,7 +67,9 @@ impl Plugin for Emoji {
 
     fn execute(&mut self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
         match message.command {
-            Command::PRIVMSG(ref target, ref content) => self.emoji(server, content, target),
+            Command::PRIVMSG(_, ref content) => {
+                self.emoji(server, content, message.response_target().unwrap())
+            }
             _ => Ok(()),
         }
     }

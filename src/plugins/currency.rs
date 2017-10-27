@@ -119,7 +119,7 @@ impl Currency {
 
     fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
         let help = format!("Incorrect Command. \
-                           Send \"{} help currency\" for help.",
+                           Send \"{} currency help\" for help.",
                            server.current_nickname());
 
         server.send_notice(&command.source, &help)

@@ -121,10 +121,6 @@ impl ThreadedPlugins {
             return server.send_notice(&command.source, &help);
         }
 
-        if &command.tokens[0].to_lowercase() == "help" {
-            return self.send_help_message(server, &command);
-        }
-
         // Check if the command is for this plugin
         if let Some(plugin) = self.plugins.get(&command.tokens[0].to_lowercase()) {
 
@@ -150,10 +146,6 @@ impl ThreadedPlugins {
 
             server.send_notice(&command.source, &help)
         }
-    }
-
-    fn send_help_message(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
-        server.send_notice(&command.source, "Help has not been added yet.")
     }
 }
 

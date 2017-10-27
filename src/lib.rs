@@ -65,6 +65,7 @@ pub fn run() {
 
     // The list of plugins in use
     let mut plugins = ThreadedPlugins::new();
+    plugins.add(plugins::help::Help::new());
     plugins.add(plugins::emoji::Emoji::new());
     plugins.add(plugins::currency::Currency::new());
     info!("Plugins loaded: {}", plugins);

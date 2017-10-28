@@ -4,12 +4,16 @@
 //! Frippy is an IRC bot that runs plugins on each message
 //! received.
 //!
-//! # Example
+//! ## Example
 //! ```no_run
 //! extern crate frippy;
 //!
 //! frippy::run();
 //! ```
+//!
+//! # Logging
+//! Frippy uses the [log](https://docs.rs/log) crate so you can log events
+//! which might be of interest.
 
 #[macro_use]
 extern crate log;

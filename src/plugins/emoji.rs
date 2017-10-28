@@ -46,7 +46,6 @@ impl Emoji {
     }
 
     fn return_emojis(&self, string: &str) -> Vec<EmojiHandle> {
-
         let mut emojis: Vec<EmojiHandle> = Vec::new();
 
         let mut current = EmojiHandle {
@@ -56,19 +55,21 @@ impl Emoji {
 
 
         for c in string.chars() {
-            if self.is_emoji(&c) {
-                if current.symbol == c {
-                    current.count = current.count + 1;
+            if !self.is_emoji(&c) {
+                continue;
+            }
 
-                } else {
-                    if current.count > 0 {
-                        emojis.push(current);
-                    }
+            if current.symbol == c {
+                current.count += 1;
 
-                    current = EmojiHandle {
-                        symbol: c,
-                        count: 1,
-                    }
+            } else {
+                if current.count > 0 {
+                    emojis.push(current);
+                }
+
+                current = EmojiHandle {
+                    symbol: c,
+                    count: 1,
                 }
             }
         }

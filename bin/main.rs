@@ -7,6 +7,8 @@ extern crate futures;
 #[macro_use]
 extern crate log;
 
+use std::collections::HashMap;
+
 use log::{LogRecord, LogLevel, LogLevelFilter, LogMetadata};
 
 use tokio_core::reactor::Core;
@@ -95,7 +97,7 @@ fn main() {
         bot.add_plugin(plugins::Emoji::new());
         bot.add_plugin(plugins::Currency::new());
         bot.add_plugin(plugins::KeepNick::new());
-        bot.add_plugin(plugins::Factoids::new());
+        bot.add_plugin(plugins::Factoids::new(HashMap::new()));
 
         if let Some(disabled_plugins) = disabled_plugins {
             for name in disabled_plugins {

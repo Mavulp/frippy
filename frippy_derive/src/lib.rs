@@ -17,8 +17,10 @@ pub fn derive_plugin(data: TokenStream) -> TokenStream {
 
 fn expand_plugin(ast: &syn::DeriveInput) -> quote::Tokens {
     let name = &ast.ident;
+    let generics = &ast.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     quote! {
-        impl PluginName for #name {
+        impl #impl_generics PluginName for #name #ty_generics #where_clause {
             fn name(&self) -> &str {
                 stringify!(#name)
             }

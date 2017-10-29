@@ -4,16 +4,17 @@ use self::rlua::prelude::*;
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
 
-use std::collections::HashMap;
 use std::sync::Mutex;
 
 use plugin::*;
+mod database;
+use self::database::*;
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
 #[derive(PluginName, Debug)]
-pub struct Factoids {
-    factoids: Mutex<HashMap<String, String>>,
+pub struct Factoids<T: Database> {
+    factoids: Mutex<T>,
 }
 
 macro_rules! try_lock {
@@ -25,9 +26,9 @@ macro_rules! try_lock {
     }
 }
 
-impl Factoids {
-    pub fn new() -> Factoids {
-        Factoids { factoids: Mutex::new(HashMap::new()) }
+impl<T: Database> Factoids<T> {
+    pub fn new(db: T) -> Factoids<T> {
+        Factoids { factoids: Mutex::new(db) }
     }
 
     fn add(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
@@ -128,7 +129,7 @@ impl Factoids {
     }
 }
 
-impl Plugin for Factoids {
+impl<T: Database> Plugin for Factoids<T> {
     fn is_allowed(&self, _: &IrcServer, message: &Message) -> bool {
         match message.command {
             Command::PRIVMSG(_, ref content) => content.starts_with('!'),

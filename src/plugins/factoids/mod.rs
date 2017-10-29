@@ -9,6 +9,8 @@ use std::sync::Mutex;
 
 use plugin::*;
 
+static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
+
 #[derive(PluginName, Debug)]
 pub struct Factoids {
     factoids: Mutex<HashMap<String, String>>,
@@ -22,8 +24,6 @@ macro_rules! try_lock {
         }
     }
 }
-
-static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
 impl Factoids {
     pub fn new() -> Factoids {
@@ -75,9 +75,19 @@ impl Factoids {
                 None => return self.invalid_command(server, &command),
             };
 
-            let value = match self.run_lua(&name, factoid, &command) {
-                Ok(v) => v,
-                Err(e) => format!("{}", e),
+            let value = if factoid.starts_with(">") {
+                let factoid = String::from(&factoid[1..]);
+
+                if factoid.starts_with(">") {
+                    factoid
+                } else {
+                    match self.run_lua(&name, &factoid, &command) {
+                        Ok(v) => v,
+                        Err(e) => format!("{}", e),
+                    }
+                }
+            } else {
+                String::from(factoid)
             };
 
             server.send_privmsg(&command.target, &value)

@@ -4,8 +4,11 @@ extern crate serde_json;
 extern crate regex;
 
 use std::io::Read;
+use std::num::ParseFloatError;
+
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
+
 use self::reqwest::Client;
 use self::reqwest::header::Connection;
 use self::serde_json::Value;
@@ -66,25 +69,23 @@ impl Currency {
         Currency {}
     }
 
-    fn eval_command<'a>(&self, tokens: &'a [String]) -> Option<ConvertionRequest<'a>> {
-        let parsed = match tokens[0].parse() {
-            Ok(v) => v,
-            Err(_) => {
-                return None;
-            }
-        };
-
-        Some(ConvertionRequest {
-                 value: parsed,
-                 source: &tokens[1],
-                 target: &tokens[2],
-             })
+    fn eval_command<'a>(&self, tokens: &'a [String]) -> Result<ConvertionRequest<'a>, ParseFloatError> {
+        Ok(ConvertionRequest {
+            value: tokens[0].parse()?,
+            source: &tokens[1],
+            target: &tokens[2],
+        })
     }
 
     fn convert(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+
+        if command.tokens.len() < 3 {
+            return self.invalid_command(server, &command);
+        }
+
         let request = match self.eval_command(&command.tokens) {
-            Some(request) => request,
-            None => {
+            Ok(request) => request,
+            Err(_) => {
                 return self.invalid_command(server, &command);
             }
         };
@@ -103,7 +104,7 @@ impl Currency {
         }
     }
 
-    fn help(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn help(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
         let help = format!("usage: {} currency value from_currency to_currency\r\n\
                             example: 1.5 eur usd\r\n\
                             available currencies: AUD, BGN, BRL, CAD, \
@@ -111,14 +112,14 @@ impl Currency {
                             IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \
                             NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, \
                             TRY, USD, ZAR",
-                            server.current_nickname());
+                           server.current_nickname());
 
         server.send_notice(&command.source, &help)
     }
 
     fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
-        let help = format!("Incorrect value. \
-                           Send \"{} help currency\" for help.",
+        let help = format!("Incorrect Command. \
+                           Send \"{} currency help\" for help.",
                            server.current_nickname());
 
         server.send_notice(&command.source, &help)
@@ -131,21 +132,18 @@ impl Plugin for Currency {
     }
 
     fn execute(&mut self, _: &IrcServer, _: &Message) -> Result<(), IrcError> {
-        Ok(())
+        panic!("Currency does not implement the execute function!")
     }
 
-    fn command(&mut self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&mut self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
+
         if command.tokens.is_empty() {
-            self.invalid_command(server, &command)
+            return self.invalid_command(server, &command);
+        }
 
-        } else if command.tokens[0].to_lowercase() == "help" {
-            self.help(server, command)
-
-        } else if command.tokens.len() >= 3 {
-            self.convert(server, command)
-
-        } else {
-            self.invalid_command(server, &command)
+        match command.tokens[0].as_ref() {
+            "help" => self.help(server, &mut command),
+            _ => self.convert(server, command),
         }
     }
 }

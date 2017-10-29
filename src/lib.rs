@@ -4,42 +4,40 @@
 //! Frippy is an IRC bot that runs plugins on each message
 //! received.
 //!
-//! # Example
+//! ## Example
 //! ```no_run
 //! extern crate frippy;
 //!
 //! frippy::run();
 //! ```
+//!
+//! # Logging
+//! Frippy uses the [log](https://docs.rs/log) crate so you can log events
+//! which might be of interest.
 
 #[macro_use]
-extern crate lazy_static;
+extern crate log;
 #[macro_use]
 extern crate plugin_derive;
 
 extern crate irc;
-extern crate regex;
+extern crate tokio_core;
+extern crate futures;
+extern crate glob;
 
 mod plugin;
 mod plugins;
 
-use std::thread::spawn;
-use std::sync::{Arc, Mutex};
-use regex::Regex;
+use std::sync::Arc;
+
 use irc::client::prelude::*;
-use irc::proto::Command::PRIVMSG;
 use irc::error::Error as IrcError;
 
-use plugin::*;
+use tokio_core::reactor::Core;
+use futures::future;
+use glob::glob;
 
-// Lock the mutex and ignore if it is poisoned
-macro_rules! lock_plugin {
-    ($e:expr) => {
-        match $e.lock() {
-            Ok(plugin) => plugin,
-            Err(poisoned) => poisoned.into_inner(),
-        }
-    }
-}
+use plugin::*;
 
 /// Runs the bot
 ///
@@ -47,136 +45,98 @@ macro_rules! lock_plugin {
 ///
 /// This blocks the current thread while the bot is running
 pub fn run() {
-    let server = IrcServer::new("config.toml").unwrap();
-    server.identify().unwrap();
+
+    // Load all toml files in the configs directory
+    let mut configs = Vec::new();
+    for toml in glob("configs/*.toml").unwrap() {
+        match toml {
+            Ok(path) => {
+                info!("Loading {}", path.to_str().unwrap());
+                match Config::load(path) {
+                    Ok(v) => configs.push(v),
+                    Err(e) => error!("Incorrect config file {}", e),
+                }
+            }
+            Err(e) => error!("Failed to read path {}", e),
+        }
+    }
+
+    // Without configs the bot would just idle
+    if configs.is_empty() {
+        error!("No config file found");
+        return;
+    }
 
     // The list of plugins in use
-    let plugins: Vec<Arc<Mutex<Plugin>>> =
-        vec![Arc::new(Mutex::new(plugins::emoji::Emoji::new())),
-             Arc::new(Mutex::new(plugins::currency::Currency::new()))];
+    let mut plugins = ThreadedPlugins::new();
+    plugins.add(plugins::Help::new());
+    plugins.add(plugins::Emoji::new());
+    plugins.add(plugins::Currency::new());
+    info!("Plugins loaded: {}", plugins);
 
-    // We need the plugins' names to make sure the user gets a response
-    // if they use an incorrect plugin name
-    let plugin_names: Vec<String> = plugins
-        .iter()
-        .map(|p| p.lock().unwrap().name().to_lowercase())
-        .collect();
+    // Create an event loop to run the connections on.
+    let mut reactor = Core::new().unwrap();
 
-    // The main loop over received messages
-    server
-        .for_each_incoming(|message| {
-            let message = Arc::new(message);
-            // Check for possible command and save the result for later
-            let command = get_command(&server.current_nickname().to_lowercase(), &message);
-
-            // Check if the first token of the command is valid
-            if let Some(ref c) = command {
-                if c.tokens.is_empty() {
-                    let help = format!("Use \"{} help\" to get help", server.current_nickname());
-                    server.send_notice(&c.source, &help).unwrap();
-
-                } else if "help" == &c.tokens[0].to_lowercase() {
-                    send_help_message(&server, c).unwrap();
-
-                } else if !plugin_names.contains(&c.tokens[0].to_lowercase()) {
-
-                    let help = format!("\"{} {}\" is not a command, \
-                                       try \"{0} help\" instead.",
-                                       server.current_nickname(),
-                                       c.tokens[0]);
-
-                    server.send_notice(&c.source, &help).unwrap();
+    // Open a connection and add work for each config
+    for config in configs {
+        let server =
+            match IrcServer::new_future(reactor.handle(), &config).and_then(|f| reactor.run(f)) {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("Failed to connect: {}", e);
+                    return;
                 }
-            }
+            };
 
-            for plugin in plugins.clone() {
-                // Send the message to the plugin if the plugin needs it
-                if lock_plugin!(plugin).is_allowed(&server, &message) {
+        info!("Connected to server");
 
-                    // Clone everything before the move
-                    // The server uses an Arc internally too
-                    let plugin = Arc::clone(&plugin);
-                    let message = Arc::clone(&message);
-                    let server = server.clone();
+        match server.identify() {
+            Ok(_) => info!("Identified"),
+            Err(e) => error!("Failed to identify: {}", e),
+        };
 
-                    // Execute the plugin in another thread
-                    spawn(move || { lock_plugin!(plugin).execute(&server, &message).unwrap(); });
-                }
+        // TODO Verify if we actually need to clone plugins twice
+        let plugins = plugins.clone();
 
-                // Check if the command is for this plugin
-                // Clone it for the move
-                if let Some(mut c) = command.clone() {
+        let task = server
+            .stream()
+            .for_each(move |message| process_msg(&server, plugins.clone(), message))
+            .map_err(|e| error!("Failed to process message: {}", e));
 
-                    // Skip empty commands
-                    if c.tokens.is_empty() { continue; }
-
-                    if lock_plugin!(plugin).name().to_lowercase() == c.tokens[0].to_lowercase() {
-
-                        // The first token contains the name of the plugin
-                        c.tokens.remove(0);
-
-                        // Clone the server for the move - it uses an Arc internally
-                        let server = server.clone();
-                        spawn(move || { lock_plugin!(plugin).command(&server, c).unwrap(); });
-                    }
-                }
-            }
-        })
-        .unwrap();
-}
-
-fn send_help_message(server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
-    server.send_notice(&command.source, "Help has not been added yet.")
-}
-
-fn get_command(nick: &str, message: &Message) -> Option<PluginCommand> {
-
-    // Get the actual message out of PRIVMSG
-    if let PRIVMSG(_, ref content) = message.command {
-
-        // Split content by spaces and filter empty tokens
-        let mut tokens: Vec<String> = content
-            .split(' ')
-            .filter(|&x| !x.is_empty())
-            .map(ToOwned::to_owned)
-            .collect();
-
-        // Check if the message contained notthing but spaces
-        if tokens.is_empty() {
-            return None;
-        }
-
-        // Only compile the regex once
-        // We assume that only ':' and ',' are used as suffixes on IRC
-        lazy_static! {
-            static ref RE: Regex = Regex::new("^[:,]*?$").unwrap();
-        }
-
-        if tokens[0].to_lowercase().starts_with(nick) {
-
-            // Remove the bot's name from the first token
-            tokens[0].drain(..nick.len());
-
-            // If the regex does not match the message is not directed at the bot
-            if !RE.is_match(&tokens[0]) {
-                return None;
-            }
-
-            // The first token contained the name of the bot
-            tokens.remove(0);
-
-            Some(PluginCommand {
-                     source: message.source_nickname().unwrap().to_string(),
-                     target: message.response_target().unwrap().to_string(),
-                     tokens: tokens,
-                 })
-        } else {
-            None
-        }
-    } else {
-        None
+        reactor.handle().spawn(task);
     }
+
+    // Run the main loop forever
+    reactor.run(future::empty::<(), ()>()).unwrap();
 }
+
+fn process_msg(server: &IrcServer,
+               mut plugins: ThreadedPlugins,
+               message: Message)
+               -> Result<(), IrcError> {
+
+    if let Command::JOIN(ref channel, _, _) = message.command {
+        if message.source_nickname().unwrap() == server.current_nickname() {
+            info!("Joined {}", channel);
+        }
+    }
+
+    // Check for possible command and save the result for later
+    let command = PluginCommand::from(&server.current_nickname().to_lowercase(), &message);
+
+    let message = Arc::new(message);
+    plugins.execute_plugins(server, message);
+
+    // If the message contained a command, handle it
+    if let Some(command) = command {
+        if let Err(e) = plugins.handle_command(server, command) {
+            error!("Failed to handle command: {}", e);
+        }
+    }
+
+    Ok(())
+}
+
 
 #[cfg(test)]
 mod tests {}

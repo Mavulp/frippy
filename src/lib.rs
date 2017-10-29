@@ -69,9 +69,9 @@ pub fn run() {
 
     // The list of plugins in use
     let mut plugins = ThreadedPlugins::new();
-    plugins.add(plugins::help::Help::new());
-    plugins.add(plugins::emoji::Emoji::new());
-    plugins.add(plugins::currency::Currency::new());
+    plugins.add(plugins::Help::new());
+    plugins.add(plugins::Emoji::new());
+    plugins.add(plugins::Currency::new());
     info!("Plugins loaded: {}", plugins);
 
     // Create an event loop to run the connections on.

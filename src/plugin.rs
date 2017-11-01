@@ -98,6 +98,10 @@ impl ThreadedPlugins {
             // Send the message to the plugin if the plugin needs it
             if lock_plugin!(plugin).is_allowed(server, &message) {
 
+                debug!("Executing {} with {}",
+                       name,
+                       message.to_string().replace("\r\n", ""));
+
                 // Clone everything before the move
                 // The server uses an Arc internally too
                 let plugin = Arc::clone(&plugin);
@@ -114,7 +118,10 @@ impl ThreadedPlugins {
         }
     }
 
-    pub fn handle_command(&mut self, server: &IrcServer, mut command: PluginCommand)  -> Result<(), IrcError> {
+    pub fn handle_command(&mut self,
+                          server: &IrcServer,
+                          mut command: PluginCommand)
+                          -> Result<(), IrcError> {
 
         if !command.tokens.iter().any(|s| !s.is_empty()) {
             let help = format!("Use \"{} help\" to get help", server.current_nickname());
@@ -126,6 +133,8 @@ impl ThreadedPlugins {
 
             // The first token contains the name of the plugin
             let name = command.tokens.remove(0);
+
+            debug!("Sending command \"{:?}\" to {}", command, name);
 
             // Clone for the move - the server uses an Arc internally
             let server = server.clone();

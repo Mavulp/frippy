@@ -1,7 +1,6 @@
 extern crate reqwest;
 extern crate serde;
 extern crate serde_json;
-extern crate regex;
 
 use std::io::Read;
 use std::num::ParseFloatError;

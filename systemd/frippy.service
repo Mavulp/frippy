@@ -1,0 +1,15 @@
+[Unit]
+Description=IRC Bot written in Rust
+After=network-online.target
+
+[Service]
+Type=simple
+User=frippy
+Group=frippy
+WorkingDirectory=/etc/frippy
+ExecStart=/usr/bin/frippy
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

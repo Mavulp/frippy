@@ -18,6 +18,9 @@ name = "frippy"
 path = "bin/main.rs"
 doc = false
 
+[features]
+mysql = ["diesel", "diesel_codegen", "dotenv"]
+
 [dependencies]
 irc             = "0.12.5"
 tokio-core      = "0.1.10"
@@ -34,6 +37,25 @@ serde_json      = "1.0.3"
 glob            = "0.2"
 
 frippy_derive = { path = "frippy_derive" }
-unicode_names = { git = 'https://github.com/Jokler/unicode_names', branch = 'update-to-latest-unicode' }
 
-clippy = {version = "*", optional = true}
+[dependencies.unicode_names]
+git = 'https://github.com/Jokler/unicode_names'
+branch = 'update-to-latest-unicode'
+
+[dependencies.diesel]
+version = "0.16.0"
+optional = true
+features = ["mysql"]
+
+[dependencies.diesel_codegen]
+version = "0.16.0"
+optional = true
+features = ["mysql"]
+
+[dependencies.dotenv]
+version = "0.10.1"
+optional = true
+
+[dependencies.clippy]
+version = "*"
+optional = true

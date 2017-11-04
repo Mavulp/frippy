@@ -1,0 +1,4 @@
+CREATE TABLE factoids (
+    name VARCHAR(32) PRIMARY KEY,
+    content VARCHAR(5000) NOT NULL
+)

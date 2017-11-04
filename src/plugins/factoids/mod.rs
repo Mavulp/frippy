@@ -1,5 +1,6 @@
 extern crate rlua;
 
+use std::fmt;
 use self::rlua::prelude::*;
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
@@ -8,11 +9,11 @@ use std::sync::Mutex;
 
 use plugin::*;
 mod database;
-use self::database::*;
+use self::database::Database;
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
-#[derive(PluginName, Debug)]
+#[derive(PluginName)]
 pub struct Factoids<T: Database> {
     factoids: Mutex<T>,
 }
@@ -40,7 +41,7 @@ impl<T: Database> Factoids<T> {
         let name = command.tokens.remove(0);
 
         try_lock!(self.factoids)
-            .insert(name, command.tokens.join(" "));
+            .insert(&name, &command.tokens.join(" "));
 
         server.send_notice(&command.source, "Successfully added")
     }
@@ -63,7 +64,6 @@ impl<T: Database> Factoids<T> {
     }
 
     fn exec(&self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
-
         if command.tokens.len() < 1 {
             self.invalid_command(server, &command)
 
@@ -88,7 +88,7 @@ impl<T: Database> Factoids<T> {
                     }
                 }
             } else {
-                String::from(factoid)
+                factoid
             };
 
             server.send_privmsg(&command.target, &value)
@@ -168,5 +168,11 @@ impl<T: Database> Plugin for Factoids<T> {
             "exec" => self.exec(server, command),
             _ => self.invalid_command(server, &command),
         }
+    }
+}
+
+impl<T: Database> fmt::Debug for Factoids<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Factoids {{ ... }}")
     }
 }

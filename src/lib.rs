@@ -31,6 +31,13 @@
 //! Frippy uses the [log](https://docs.rs/log) crate so you can log events
 //! which might be of interest.
 
+#[cfg(feature = "mysql")]
+#[macro_use]
+extern crate diesel;
+#[cfg(feature = "mysql")]
+#[macro_use]
+extern crate diesel_codegen;
+
 #[macro_use]
 extern crate log;
 #[macro_use]

@@ -105,7 +105,7 @@ impl Plugin for Emoji {
         }
     }
 
-    fn execute(&mut self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
+    fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
                 self.emoji(server, content, message.response_target().unwrap())
@@ -114,7 +114,7 @@ impl Plugin for Emoji {
         }
     }
 
-    fn command(&mut self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
         server.send_notice(&command.source,
                            "This Plugin does not implement any commands.")
     }

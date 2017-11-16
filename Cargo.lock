@@ -274,7 +274,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "frippy"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "clippy 0.0.166 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -130,11 +130,11 @@ impl Plugin for Currency {
         false
     }
 
-    fn execute(&mut self, _: &IrcServer, _: &Message) -> Result<(), IrcError> {
+    fn execute(&self, _: &IrcServer, _: &Message) -> Result<(), IrcError> {
         panic!("Currency does not implement the execute function!")
     }
 
-    fn command(&mut self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
 
         if command.tokens.is_empty() {
             return self.invalid_command(server, &command);

@@ -21,11 +21,11 @@ impl Plugin for Help {
         false
     }
 
-    fn execute(&mut self, _: &IrcServer, _: &Message) -> Result<(), IrcError> {
+    fn execute(&self, _: &IrcServer, _: &Message) -> Result<(), IrcError> {
         panic!("Help does not implement the execute function!")
     }
 
-    fn command(&mut self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
         self.help(server, command)
     }
 }

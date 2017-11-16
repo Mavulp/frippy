@@ -1,15 +1,15 @@
 use std::fmt;
 use std::collections::HashMap;
 use std::thread::spawn;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
 
 pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
     fn is_allowed(&self, server: &IrcServer, message: &Message) -> bool;
-    fn execute(&mut self, server: &IrcServer, message: &Message) -> Result<(), IrcError>;
-    fn command(&mut self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError>;
+    fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError>;
+    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError>;
 }
 
 pub trait PluginName: Send + Sync + fmt::Debug {
@@ -65,19 +65,9 @@ impl PluginCommand {
     }
 }
 
-// Lock the mutex and ignore if it is poisoned
-macro_rules! lock_plugin {
-    ($e:expr) => {
-        match $e.lock() {
-            Ok(plugin) => plugin,
-            Err(poisoned) => poisoned.into_inner(),
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct ThreadedPlugins {
-    plugins: HashMap<String, Arc<Mutex<Plugin>>>,
+    plugins: HashMap<String, Arc<Plugin>>,
 }
 
 impl ThreadedPlugins {
@@ -87,7 +77,7 @@ impl ThreadedPlugins {
 
     pub fn add<T: Plugin + 'static>(&mut self, plugin: T) {
         let name = plugin.name().to_lowercase();
-        let safe_plugin = Arc::new(Mutex::new(plugin));
+        let safe_plugin = Arc::new(plugin);
 
         self.plugins.insert(name, safe_plugin);
     }
@@ -96,7 +86,7 @@ impl ThreadedPlugins {
 
         for (name, plugin) in self.plugins.clone() {
             // Send the message to the plugin if the plugin needs it
-            if lock_plugin!(plugin).is_allowed(server, &message) {
+            if plugin.is_allowed(server, &message) {
 
                 debug!("Executing {} with {}",
                        name,
@@ -110,7 +100,7 @@ impl ThreadedPlugins {
 
                 // Execute the plugin in another thread
                 spawn(move || {
-                          if let Err(e) = lock_plugin!(plugin).execute(&server, &message) {
+                          if let Err(e) = plugin.execute(&server, &message) {
                               error!("Error in {} - {}", name, e);
                           };
                       });
@@ -140,7 +130,7 @@ impl ThreadedPlugins {
             let server = server.clone();
             let plugin = Arc::clone(plugin);
             spawn(move || {
-                      if let Err(e) = lock_plugin!(plugin).command(&server, command) {
+                      if let Err(e) = plugin.command(&server, command) {
                           error!("Error in {} command - {}", name, e);
                       };
                   });
@@ -162,7 +152,7 @@ impl fmt::Display for ThreadedPlugins {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let plugin_names = self.plugins
             .iter()
-            .map(|(_, p)| lock_plugin!(p).name().to_string())
+            .map(|(_, p)| p.name().to_string())
             .collect::<Vec<String>>();
         write!(f, "{}", plugin_names.join(", "))
     }

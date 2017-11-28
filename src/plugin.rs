@@ -1,29 +1,50 @@
 use std::fmt;
-use std::collections::HashMap;
-use std::thread::spawn;
-use std::sync::Arc;
 
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
 
+/// `Plugin` has to be implemented for any struct that should be usable
+/// as a plugin in frippy.
 pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
+    /// This should return true if the `Plugin` wants to do work on the message.
     fn is_allowed(&self, server: &IrcServer, message: &Message) -> bool;
+    /// Handles messages which are not commands but still necessary.
     fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError>;
+    /// Handles any command directed at this plugina.
     fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError>;
 }
 
+/// `PluginName` is required by `Plugin`.
+/// To implement it simply add `#[derive(PluginName)]`
+/// above the definition of the struct.
+///
+/// # Examples
+/// ```ignore
+/// #[macro_use] extern crate plugin_derive;
+///
+/// #[derive(PluginName)]
+/// struct Foo;
+/// ```
 pub trait PluginName: Send + Sync + fmt::Debug {
+    /// Returns the name of the plugin.
     fn name(&self) -> &str;
 }
 
+/// Represents a command sent by a user to the bot.
 #[derive(Clone, Debug)]
 pub struct PluginCommand {
+    /// The sender of the command.
     pub source: String,
+    /// If the command was sent to a channel, this will be that channel
+    /// otherwise it is the same as `source`.
     pub target: String,
+    /// The remaining part of the message that has not been processed yet - split by spaces.
     pub tokens: Vec<String>,
 }
 
 impl PluginCommand {
+    /// Creates a `PluginCommand` from `Message` if it is a `PRIVMSG`
+    /// that starts with the provided `nick`.
     pub fn from(nick: &str, message: &Message) -> Option<PluginCommand> {
 
         // Get the actual message out of PRIVMSG
@@ -62,98 +83,5 @@ impl PluginCommand {
         } else {
             None
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ThreadedPlugins {
-    plugins: HashMap<String, Arc<Plugin>>,
-}
-
-impl ThreadedPlugins {
-    pub fn new() -> ThreadedPlugins {
-        ThreadedPlugins { plugins: HashMap::new() }
-    }
-
-    pub fn add<T: Plugin + 'static>(&mut self, plugin: T) {
-        let name = plugin.name().to_lowercase();
-        let safe_plugin = Arc::new(plugin);
-
-        self.plugins.insert(name, safe_plugin);
-    }
-
-    pub fn execute_plugins(&mut self, server: &IrcServer, message: Arc<Message>) {
-
-        for (name, plugin) in self.plugins.clone() {
-            // Send the message to the plugin if the plugin needs it
-            if plugin.is_allowed(server, &message) {
-
-                debug!("Executing {} with {}",
-                       name,
-                       message.to_string().replace("\r\n", ""));
-
-                // Clone everything before the move
-                // The server uses an Arc internally too
-                let plugin = Arc::clone(&plugin);
-                let message = Arc::clone(&message);
-                let server = server.clone();
-
-                // Execute the plugin in another thread
-                spawn(move || {
-                          if let Err(e) = plugin.execute(&server, &message) {
-                              error!("Error in {} - {}", name, e);
-                          };
-                      });
-            }
-        }
-    }
-
-    pub fn handle_command(&mut self,
-                          server: &IrcServer,
-                          mut command: PluginCommand)
-                          -> Result<(), IrcError> {
-
-        if !command.tokens.iter().any(|s| !s.is_empty()) {
-            let help = format!("Use \"{} help\" to get help", server.current_nickname());
-            return server.send_notice(&command.source, &help);
-        }
-
-        // Check if the command is for this plugin
-        if let Some(plugin) = self.plugins.get(&command.tokens[0].to_lowercase()) {
-
-            // The first token contains the name of the plugin
-            let name = command.tokens.remove(0);
-
-            debug!("Sending command \"{:?}\" to {}", command, name);
-
-            // Clone for the move - the server uses an Arc internally
-            let server = server.clone();
-            let plugin = Arc::clone(plugin);
-            spawn(move || {
-                      if let Err(e) = plugin.command(&server, command) {
-                          error!("Error in {} command - {}", name, e);
-                      };
-                  });
-
-            Ok(())
-
-        } else {
-            let help = format!("\"{} {}\" is not a command, \
-                                try \"{0} help\" instead.",
-                               server.current_nickname(),
-                               command.tokens[0]);
-
-            server.send_notice(&command.source, &help)
-        }
-    }
-}
-
-impl fmt::Display for ThreadedPlugins {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let plugin_names = self.plugins
-            .iter()
-            .map(|(_, p)| p.name().to_string())
-            .collect::<Vec<String>>();
-        write!(f, "{}", plugin_names.join(", "))
     }
 }

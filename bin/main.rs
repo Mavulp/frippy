@@ -4,6 +4,8 @@ extern crate time;
 
 use log::{LogRecord, LogLevel, LogLevelFilter, LogMetadata};
 
+use frippy::plugins;
+
 struct Logger;
 
 impl log::Log for Logger {
@@ -43,5 +45,11 @@ fn main() {
                     })
             .unwrap();
 
-    frippy::run();
+    let mut bot = frippy::Bot::new();
+
+    bot.add_plugin(plugins::Help::new());
+    bot.add_plugin(plugins::Emoji::new());
+    bot.add_plugin(plugins::Currency::new());
+
+    bot.run();
 }

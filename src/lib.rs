@@ -24,7 +24,7 @@
 #[macro_use]
 extern crate log;
 #[macro_use]
-extern crate plugin_derive;
+extern crate frippy_derive;
 
 extern crate irc;
 extern crate tokio_core;

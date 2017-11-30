@@ -20,7 +20,7 @@ pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
 ///
 /// # Examples
 /// ```ignore
-/// #[macro_use] extern crate plugin_derive;
+/// #[macro_use] extern crate frippy_derive;
 ///
 /// #[derive(PluginName)]
 /// struct Foo;

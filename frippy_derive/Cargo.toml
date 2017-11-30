@@ -1,5 +1,5 @@
 [package]
-name = "plugin_derive"
+name = "frippy_derive"
 version = "0.1.0"
 authors = ["Jokler <jokler.contact@gmail.com>"]
 

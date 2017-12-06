@@ -50,6 +50,7 @@ fn main() {
     bot.add_plugin(plugins::Help::new());
     bot.add_plugin(plugins::Emoji::new());
     bot.add_plugin(plugins::Currency::new());
+    bot.add_plugin(plugins::KeepNick::new());
 
     bot.run();
 }

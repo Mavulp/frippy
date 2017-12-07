@@ -11,11 +11,15 @@ impl KeepNick {
         KeepNick {}
     }
 
-    fn check_nick(&self, server: &IrcServer) -> Result<(), IrcError> {
+    fn check_nick(&self, server: &IrcServer, leaver: &str) -> Result<(), IrcError> {
         let cfg_nick = match server.config().nickname {
             Some(ref nick) => nick.clone(),
             None => return Ok(()),
         };
+
+        if leaver != cfg_nick {
+            return Ok(());
+        }
 
         let server_nick = server.current_nickname();
 
@@ -37,8 +41,13 @@ impl Plugin for KeepNick {
         }
     }
 
-    fn execute(&self, server: &IrcServer, _: &Message) -> Result<(), IrcError> {
-        self.check_nick(server)
+    fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
+        match message.command {
+            Command::QUIT(ref nick) => {
+                self.check_nick(server, &nick.clone().unwrap_or(String::from("")))
+            }
+            _ => Ok(()),
+        }
     }
 
     fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {

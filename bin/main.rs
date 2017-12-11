@@ -1,10 +1,20 @@
 extern crate frippy;
-extern crate log;
 extern crate time;
+extern crate tokio_core;
+extern crate glob;
+extern crate futures;
+
+#[macro_use]
+extern crate log;
 
 use log::{LogRecord, LogLevel, LogLevelFilter, LogMetadata};
 
+use tokio_core::reactor::Core;
+use futures::future;
+use glob::glob;
+
 use frippy::plugins;
+use frippy::Config;
 
 struct Logger;
 
@@ -45,12 +55,41 @@ fn main() {
                     })
             .unwrap();
 
-    let mut bot = frippy::Bot::new();
+    // Load all toml files in the configs directory
+    let mut configs = Vec::new();
+    for toml in glob("configs/*.toml").unwrap() {
+        match toml {
+            Ok(path) => {
+                info!("Loading {}", path.to_str().unwrap());
+                match Config::load(path) {
+                    Ok(v) => configs.push(v),
+                    Err(e) => error!("Incorrect config file {}", e),
+                }
+            }
+            Err(e) => error!("Failed to read path {}", e),
+        }
+    }
 
-    bot.add_plugin(plugins::Help::new());
-    bot.add_plugin(plugins::Emoji::new());
-    bot.add_plugin(plugins::Currency::new());
-    bot.add_plugin(plugins::KeepNick::new());
+    // Without configs the bot would just idle
+    if configs.is_empty() {
+        error!("No config file found");
+        return;
+    }
 
-    bot.run();
+    // Create an event loop to run the connections on.
+    let mut reactor = Core::new().unwrap();
+
+    // Open a connection and add work for each config
+    for config in configs {
+        let mut bot = frippy::Bot::new();
+        bot.add_plugin(plugins::Help::new());
+        bot.add_plugin(plugins::Emoji::new());
+        bot.add_plugin(plugins::Currency::new());
+        bot.add_plugin(plugins::KeepNick::new());
+
+        bot.connect(&mut reactor, &config);
+    }
+
+    // Run the main loop forever
+    reactor.run(future::empty::<(), ()>()).unwrap();
 }

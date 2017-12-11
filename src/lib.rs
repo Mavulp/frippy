@@ -6,15 +6,25 @@
 //!
 //! ## Examples
 //! ```no_run
-//! use frippy::plugins;
+//! # extern crate tokio_core;
+//! # extern crate futures;
+//! # extern crate frippy;
+//! # fn main() {
+//! use frippy::{plugins, Config, Bot};
+//! use tokio_core::reactor::Core;
+//! use futures::future;
 //!
-//! let mut bot = frippy::Bot::new();
+//! let config = Config::load("config.toml").unwrap();
+//! let mut reactor = Core::new().unwrap();
+//! let mut bot = Bot::new();
 //!
 //! bot.add_plugin(plugins::Help::new());
 //! bot.add_plugin(plugins::Emoji::new());
 //! bot.add_plugin(plugins::Currency::new());
 //!
-//! bot.run();
+//! bot.connect(&mut reactor, &config);
+//! reactor.run(future::empty::<(), ()>()).unwrap();
+//! # }
 //! ```
 //!
 //! # Logging
@@ -27,9 +37,8 @@ extern crate log;
 extern crate frippy_derive;
 
 extern crate irc;
-extern crate tokio_core;
 extern crate futures;
-extern crate glob;
+extern crate tokio_core;
 
 pub mod plugin;
 pub mod plugins;
@@ -39,12 +48,9 @@ use std::collections::HashMap;
 use std::thread::spawn;
 use std::sync::Arc;
 
-use irc::client::prelude::*;
-use irc::error::Error as IrcError;
-
 use tokio_core::reactor::Core;
-use futures::future;
-use glob::glob;
+pub use irc::client::prelude::*;
+pub use irc::error::Error as IrcError;
 
 use plugin::*;
 
@@ -81,80 +87,58 @@ impl Bot {
         self.plugins.add(plugin);
     }
 
-    /// This starts the `Bot` which means that it tries
-    /// to create one connection for each toml file
-    /// found in the `configs` directory.
+    /// This connects the `Bot` to IRC and adds a task
+    /// to the Core that was supplied.
     ///
-    /// Then it waits for incoming messages and sends them to the plugins.
-    /// This blocks the current thread until the `Bot` is shut down.
+    /// You need to run the core, so that frippy
+    /// can do its work.
     ///
     /// # Examples
     /// ```no_run
-    /// use frippy::{plugins, Bot};
+    /// # extern crate tokio_core;
+    /// # extern crate futures;
+    /// # extern crate frippy;
+    /// # fn main() {
+    /// use frippy::{Config, Bot};
+    /// use tokio_core::reactor::Core;
+    /// use futures::future;
     ///
+    /// let config = Config::load("config.toml").unwrap();
+    /// let mut reactor = Core::new().unwrap();
     /// let mut bot = Bot::new();
-    /// bot.run();
+    ///
+    /// bot.connect(&mut reactor, &config);
+    /// reactor.run(future::empty::<(), ()>()).unwrap();
+    /// # }
     /// ```
-    pub fn run(self) {
+    pub fn connect(&self, reactor: &mut Core, config: &Config) {
         info!("Plugins loaded: {}", self.plugins);
 
-        // Load all toml files in the configs directory
-        let mut configs = Vec::new();
-        for toml in glob("configs/*.toml").unwrap() {
-            match toml {
-                Ok(path) => {
-                    info!("Loading {}", path.to_str().unwrap());
-                    match Config::load(path) {
-                        Ok(v) => configs.push(v),
-                        Err(e) => error!("Incorrect config file {}", e),
-                    }
+        let server =
+            match IrcServer::new_future(reactor.handle(), config).and_then(|f| {reactor.run(f)}) {
+                Ok(v) => v,
+                Err(e) => {
+                    error!("Failed to connect: {}", e);
+                    return;
                 }
-                Err(e) => error!("Failed to read path {}", e),
-            }
-        }
-
-        // Without configs the bot would just idle
-        if configs.is_empty() {
-            error!("No config file found");
-            return;
-        }
-
-        // Create an event loop to run the connections on.
-        let mut reactor = Core::new().unwrap();
-
-        // Open a connection and add work for each config
-        for config in configs {
-            let server =
-                match IrcServer::new_future(reactor.handle(), &config).and_then(|f| {
-                                                                                    reactor.run(f)
-                                                                                }) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!("Failed to connect: {}", e);
-                        return;
-                    }
-                };
-
-            info!("Connected to server");
-
-            match server.identify() {
-                Ok(_) => info!("Identified"),
-                Err(e) => error!("Failed to identify: {}", e),
             };
 
-            // TODO Verify if we actually need to clone plugins twice
-            let plugins = self.plugins.clone();
+        info!("Connected to server");
 
-            let task = server
-                .stream()
-                .for_each(move |message| process_msg(&server, plugins.clone(), message))
-                .map_err(|e| error!("Failed to process message: {}", e));
+        match server.identify() {
+            Ok(_) => info!("Identified"),
+            Err(e) => error!("Failed to identify: {}", e),
+        };
 
-            reactor.handle().spawn(task);
-        }
+        // TODO Verify if we actually need to clone plugins twice
+        let plugins = self.plugins.clone();
 
-        // Run the main loop forever
-        reactor.run(future::empty::<(), ()>()).unwrap();
+        let task = server
+            .stream()
+            .for_each(move |message| process_msg(&server, plugins.clone(), message))
+            .map_err(|e| error!("Failed to process message: {}", e));
+
+        reactor.handle().spawn(task);
     }
 }
 
@@ -213,8 +197,7 @@ impl ThreadedPlugins {
                        name,
                        message.to_string().replace("\r\n", ""));
 
-                // Clone everything before the move
-                // The server uses an Arc internally too
+                // Clone everything before the move - the server uses an Arc internally too
                 let plugin = Arc::clone(&plugin);
                 let message = Arc::clone(&message);
                 let server = server.clone();

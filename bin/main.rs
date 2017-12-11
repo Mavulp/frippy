@@ -83,6 +83,7 @@ fn main() {
     for config in configs {
         let mut bot = frippy::Bot::new();
         bot.add_plugin(plugins::Help::new());
+        bot.add_plugin(plugins::Url::new(1024));
         bot.add_plugin(plugins::Emoji::new());
         bot.add_plugin(plugins::Currency::new());
         bot.add_plugin(plugins::KeepNick::new());

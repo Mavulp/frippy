@@ -18,7 +18,7 @@ use self::select::predicate::Name;
 use plugin::*;
 
 lazy_static! {
-    static ref RE: Regex = Regex::new(r"http(s)?://(\S+)").unwrap();
+    static ref RE: Regex = Regex::new(r"(^|\s)(https?://\S+)").unwrap();
 }
 
 #[derive(PluginName, Debug)]
@@ -37,7 +37,7 @@ impl Url {
             Some(captures) => {
                 debug!("Url captures: {:?}", captures);
 
-                Some(captures.get(0).unwrap().as_str().to_string())
+                Some(captures.get(2).unwrap().as_str().to_string())
             }
             None => None,
         }

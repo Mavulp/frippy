@@ -93,13 +93,6 @@ impl Url {
                     }
                 }
 
-                // let mut body = String::new();
-                // if let Err(e) = response.read_to_string(&mut body) {
-                //     error!("Failed to read string from \"{}\": {}", url, e);
-                //     return Ok(());
-                // }
-                // let doc = Document::from(body.as_ref());
-
                 let doc = Document::from(body.as_ref());
                 if let Some(title) = doc.find(Name("title")).next() {
                     let text = title.children().next().unwrap();

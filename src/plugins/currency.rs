@@ -14,7 +14,7 @@ use self::serde_json::Value;
 
 use plugin::*;
 
-#[derive(PluginName, Debug)]
+#[derive(PluginName, Default, Debug)]
 pub struct Currency;
 
 struct ConvertionRequest<'a> {

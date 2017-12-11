@@ -56,6 +56,7 @@ pub use irc::error::Error as IrcError;
 
 use plugin::*;
 
+#[derive(Default)]
 pub struct Bot {
     plugins: ThreadedPlugins,
 }
@@ -171,7 +172,7 @@ fn process_msg(server: &IrcServer,
     Ok(())
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Default, Debug)]
 struct ThreadedPlugins {
     plugins: HashMap<String, Arc<Plugin>>,
 }

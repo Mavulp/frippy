@@ -28,7 +28,7 @@ impl fmt::Display for EmojiHandle {
     }
 }
 
-#[derive(PluginName, Debug)]
+#[derive(PluginName, Default, Debug)]
 pub struct Emoji;
 
 impl Emoji {

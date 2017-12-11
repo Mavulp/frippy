@@ -3,7 +3,7 @@ use irc::error::Error as IrcError;
 
 use plugin::*;
 
-#[derive(PluginName, Debug)]
+#[derive(PluginName, Default, Debug)]
 pub struct KeepNick;
 
 impl KeepNick {

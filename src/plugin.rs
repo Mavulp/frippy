@@ -10,7 +10,7 @@ pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
     fn is_allowed(&self, server: &IrcServer, message: &Message) -> bool;
     /// Handles messages which are not commands but still necessary.
     fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError>;
-    /// Handles any command directed at this plugina.
+    /// Handles any command directed at this plugin.
     fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError>;
 }
 

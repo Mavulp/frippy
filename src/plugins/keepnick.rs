@@ -44,7 +44,7 @@ impl Plugin for KeepNick {
     fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
         match message.command {
             Command::QUIT(ref nick) => {
-                self.check_nick(server, &nick.clone().unwrap_or(String::from("")))
+                self.check_nick(server, &nick.clone().unwrap_or_else(|| String::new()))
             }
             _ => Ok(()),
         }

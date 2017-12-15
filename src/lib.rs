@@ -90,6 +90,22 @@ impl Bot {
         self.plugins.add(plugin);
     }
 
+    /// Removes a plugin based on its name.
+    /// The binary currently uses this to disable plugins
+    /// based on user configuration.
+    ///
+    /// # Examples
+    /// ```
+    /// use frippy::{plugins, Bot};
+    ///
+    /// let mut bot = frippy::Bot::new();
+    /// bot.add_plugin(plugins::Help::new());
+    /// bot.remove_plugin("Help");
+    /// ```
+    pub fn remove_plugin(&mut self, name: &str) -> Option<()> {
+        self.plugins.remove(name)
+    }
+
     /// This connects the `Bot` to IRC and adds a task
     /// to the Core that was supplied.
     ///
@@ -187,6 +203,10 @@ impl ThreadedPlugins {
         let safe_plugin = Arc::new(plugin);
 
         self.plugins.insert(name, safe_plugin);
+    }
+
+    pub fn remove(&mut self, name: &str) -> Option<()> {
+        self.plugins.remove(&name.to_lowercase()).map(|_| ())
     }
 
     pub fn execute_plugins(&mut self, server: &IrcServer, message: Message) {

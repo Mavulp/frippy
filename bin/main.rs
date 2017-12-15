@@ -81,12 +81,28 @@ fn main() {
 
     // Open a connection and add work for each config
     for config in configs {
+
+        let mut disabled_plugins = None;
+        if let &Some(ref options) = &config.options {
+            if let Some(disabled) = options.get("disabled_plugins") {
+                disabled_plugins = Some(disabled.split(",").map(|p| p.trim()).collect::<Vec<_>>());
+            }
+        }
+
         let mut bot = frippy::Bot::new();
         bot.add_plugin(plugins::Help::new());
         bot.add_plugin(plugins::Url::new(1024));
         bot.add_plugin(plugins::Emoji::new());
         bot.add_plugin(plugins::Currency::new());
         bot.add_plugin(plugins::KeepNick::new());
+
+        if let Some(disabled_plugins) = disabled_plugins {
+            for name in disabled_plugins {
+                if let None = bot.remove_plugin(name) {
+                    error!("{:?} was not found - could not disable", name);
+                }
+            }
+        }
 
         bot.connect(&mut reactor, &config);
     }

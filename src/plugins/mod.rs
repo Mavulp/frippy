@@ -1,3 +1,4 @@
+//! Collection of plugins included
 mod help;
 mod url;
 mod emoji;

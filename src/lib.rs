@@ -56,6 +56,7 @@ pub use irc::error::Error as IrcError;
 
 use plugin::*;
 
+/// The bot which contains the main logic.
 #[derive(Default)]
 pub struct Bot {
     plugins: ThreadedPlugins,
@@ -77,7 +78,8 @@ impl Bot {
         Bot { plugins: ThreadedPlugins::new() }
     }
 
-    /// Add plugins which should evaluate incoming messages from IRC.
+    /// Adds the plugin.
+    /// These plugins will be used to evaluate incoming messages from IRC.
     ///
     /// # Examples
     /// ```

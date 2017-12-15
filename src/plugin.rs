@@ -1,3 +1,4 @@
+//! Definitions required for every `Plugin`
 use std::fmt;
 
 use irc::client::prelude::*;
@@ -14,7 +15,8 @@ pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
     fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError>;
 }
 
-/// `PluginName` is required by `Plugin`.
+/// `PluginName` is required by `Plugin`.  
+///
 /// To implement it simply add `#[derive(PluginName)]`
 /// above the definition of the struct.
 ///

@@ -35,8 +35,10 @@
 #[macro_use]
 extern crate diesel;
 #[cfg(feature = "mysql")]
+extern crate diesel_infer_schema;
+#[cfg(feature = "mysql")]
 #[macro_use]
-extern crate diesel_codegen;
+extern crate diesel_migrations;
 
 #[macro_use]
 extern crate log;
@@ -48,12 +50,15 @@ extern crate frippy_derive;
 extern crate irc;
 extern crate futures;
 extern crate tokio_core;
+extern crate regex;
+extern crate chrono;
+extern crate time;
 
 pub mod plugin;
 pub mod plugins;
 
-use std::fmt;
 use std::collections::HashMap;
+use std::fmt;
 use std::thread::spawn;
 use std::sync::Arc;
 

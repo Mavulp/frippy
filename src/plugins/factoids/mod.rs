@@ -1,15 +1,18 @@
 extern crate rlua;
 
 use std::fmt;
+use std::str::FromStr;
+use std::sync::Mutex;
 use self::rlua::prelude::*;
 use irc::client::prelude::*;
 use irc::error::Error as IrcError;
 
-use std::sync::Mutex;
+use time;
+use chrono::NaiveDateTime;
 
 use plugin::*;
 mod database;
-use self::database::Database;
+use self::database::{Database, DbResponse};
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
@@ -33,50 +36,140 @@ impl<T: Database> Factoids<T> {
     }
 
     fn add(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
-
         if command.tokens.len() < 2 {
             return self.invalid_command(server, command);
         }
 
         let name = command.tokens.remove(0);
+        let content = command.tokens.join(" ");
+        let count = match try_lock!(self.factoids).count(&name) {
+            Ok(c) => c,
+            Err(e) => return server.send_notice(&command.source, e),
+        };
 
-        try_lock!(self.factoids)
-            .insert(&name, &command.tokens.join(" "));
+        let tm = time::now().to_timespec();
 
-        server.send_notice(&command.source, "Successfully added")
+        let factoid = database::NewFactoid {
+            name: &name,
+            idx: count,
+            content: &content,
+            author: &command.source,
+            created: NaiveDateTime::from_timestamp(tm.sec, tm.nsec as u32),
+        };
+
+        match try_lock!(self.factoids).insert(&factoid) {
+            DbResponse::Success => server.send_notice(&command.source, "Successfully added"),
+            DbResponse::Failed(e) => server.send_notice(&command.source, &e),
+        }
     }
 
     fn get(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
 
-        if command.tokens.len() < 1 {
-            self.invalid_command(server, command)
+        let (name, idx) = match command.tokens.len() {
+            0 => return self.invalid_command(server, command),
+            1 => {
+                let name = &command.tokens[0];
+                let count = match try_lock!(self.factoids).count(name) {
+                    Ok(c) => c,
+                    Err(e) => return server.send_notice(&command.source, e),
+                };
 
-        } else {
-            let name = &command.tokens[0];
-            let factoids = try_lock!(self.factoids);
-            let factoid = match factoids.get(name) {
-                Some(v) => v,
-                None => return self.invalid_command(server, command),
-            };
+                if count < 1 {
+                    return server.send_notice(&command.source, &format!("{} does not exist", name));
+                }
 
-            server.send_privmsg(&command.target, &format!("{}: {}", name, factoid))
+                (name, count - 1)
+            }
+            _ => {
+                let name = &command.tokens[0];
+                let idx = match i32::from_str(&command.tokens[1]) {
+                    Ok(i) => i,
+                    Err(_) => return server.send_notice(&command.source, "Invalid index"),
+                };
+
+                (name, idx)
+            }
+        };
+
+        let factoid = match try_lock!(self.factoids).get(name, idx) {
+            Some(v) => v,
+            None => return server.send_notice(&command.source, &format!("{}~{} does not exist", name, idx)),
+        };
+
+        server.send_privmsg(&command.target,
+                            &format!("{}: {}", factoid.name, factoid.content))
+    }
+
+    fn info(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
+
+        match command.tokens.len() {
+            0 => self.invalid_command(server, command),
+            1 => {
+                let name = &command.tokens[0];
+                let count = match try_lock!(self.factoids).count(name) {
+                    Ok(c) => c,
+                    Err(e) => return server.send_notice(&command.source, e),
+                };
+
+                match count {
+                    0 => server.send_notice(&command.source, &format!("{} does not exist", name)),
+                    1 => {
+                        server.send_privmsg(&command.target,
+                                            &format!("There is 1 version of {}", name))
+                    }
+                    _ => {
+                        server.send_privmsg(&command.target,
+                                            &format!("There are {} versions of {}", count, name))
+                    }
+                }
+            }
+            _ => {
+                let name = &command.tokens[0];
+                let idx = match i32::from_str(&command.tokens[1]) {
+                    Ok(i) => i,
+                    Err(_) => return server.send_notice(&command.source, "Invalid index"),
+                };
+
+                let factoid = match try_lock!(self.factoids).get(name, idx) {
+                    Some(v) => v,
+                    None => {
+                        return server.send_notice(&command.source,
+                                                  &format!("{}~{} does not exist", name, idx))
+                    }
+                };
+
+                server.send_privmsg(&command.target,
+                                    &format!("{}: Added by {} at {} UTC",
+                                             name,
+                                             factoid.author,
+                                             factoid.created))
+            }
+
         }
     }
 
-    fn exec(&self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
+    fn exec(&self,
+            server: &IrcServer,
+            mut command: PluginCommand,
+            error: bool)
+            -> Result<(), IrcError> {
         if command.tokens.len() < 1 {
             self.invalid_command(server, &command)
 
         } else {
             let name = command.tokens.remove(0);
-
-            let factoids = try_lock!(self.factoids);
-            let factoid = match factoids.get(&name) {
-                Some(v) => v,
-                None => return self.invalid_command(server, &command),
+            let count = match try_lock!(self.factoids).count(&name) {
+                Ok(c) => c,
+                Err(e) => return server.send_notice(&command.source, e),
             };
 
-            let value = if factoid.starts_with(">") {
+            let factoid = match try_lock!(self.factoids).get(&name, count - 1) {
+                Some(v) => v.content,
+                None if error => return self.invalid_command(server, &command),
+                None => return Ok(()),
+            };
+
+            let value = &if factoid.starts_with(">") {
                 let factoid = String::from(&factoid[1..]);
 
                 if factoid.starts_with(">") {
@@ -149,7 +242,7 @@ impl<T: Database> Plugin for Factoids<T> {
                 tokens: t,
             };
 
-            self.exec(server, c)
+            self.exec(server, c, false)
 
         } else {
             Ok(())
@@ -165,7 +258,8 @@ impl<T: Database> Plugin for Factoids<T> {
         match sub_command.as_ref() {
             "add" => self.add(server, &mut command),
             "get" => self.get(server, &command),
-            "exec" => self.exec(server, command),
+            "info" => self.info(server, &command),
+            "exec" => self.exec(server, command, true),
             _ => self.invalid_command(server, &command),
         }
     }

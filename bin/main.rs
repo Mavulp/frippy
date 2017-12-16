@@ -4,9 +4,16 @@ extern crate tokio_core;
 extern crate glob;
 extern crate futures;
 
+#[cfg(feature = "mysql")]
+#[macro_use]
+extern crate diesel_migrations;
+#[cfg(feature = "mysql")]
+extern crate diesel;
+
 #[macro_use]
 extern crate log;
 
+#[cfg(not(feature = "mysql"))]
 use std::collections::HashMap;
 
 use log::{LogRecord, LogLevel, LogLevelFilter, LogMetadata};
@@ -17,6 +24,9 @@ use glob::glob;
 
 use frippy::plugins;
 use frippy::Config;
+
+#[cfg(feature = "mysql")]
+embed_migrations!();
 
 struct Logger;
 
@@ -44,7 +54,6 @@ impl log::Log for Logger {
 }
 
 fn main() {
-
     let log_level = if cfg!(debug_assertions) {
         LogLevelFilter::Debug
     } else {
@@ -87,7 +96,10 @@ fn main() {
         let mut disabled_plugins = None;
         if let &Some(ref options) = &config.options {
             if let Some(disabled) = options.get("disabled_plugins") {
-                disabled_plugins = Some(disabled.split(",").map(|p| p.trim()).collect::<Vec<_>>());
+                disabled_plugins = Some(disabled
+                                            .split(",")
+                                            .map(|p| p.trim())
+                                            .collect::<Vec<_>>());
             }
         }
 
@@ -97,7 +109,21 @@ fn main() {
         bot.add_plugin(plugins::Emoji::new());
         bot.add_plugin(plugins::Currency::new());
         bot.add_plugin(plugins::KeepNick::new());
+        #[cfg(feature = "mysql")]
+        {
+            use diesel;
+            use diesel::Connection;
+            match diesel::mysql::MysqlConnection::establish("mysql://user:password@address/db") {
+                Ok(conn) => {
+                    embedded_migrations::run(&conn).unwrap();
+                    bot.add_plugin(plugins::Factoids::new(conn));
+                }
+                Err(e) => error!("Failed to connect to database: {}", e),
+            }
+        }
+        #[cfg(not(feature = "mysql"))]
         bot.add_plugin(plugins::Factoids::new(HashMap::new()));
+
 
         if let Some(disabled_plugins) = disabled_plugins {
             for name in disabled_plugins {

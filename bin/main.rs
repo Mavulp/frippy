@@ -13,7 +13,6 @@ extern crate diesel;
 #[macro_use]
 extern crate log;
 
-#[cfg(not(feature = "mysql"))]
 use std::collections::HashMap;
 
 use log::{LogRecord, LogLevel, LogLevelFilter, LogMetadata};
@@ -94,6 +93,7 @@ fn main() {
     for config in configs {
 
         let mut disabled_plugins = None;
+        let mut mysql_url = None;
         if let &Some(ref options) = &config.options {
             if let Some(disabled) = options.get("disabled_plugins") {
                 disabled_plugins = Some(disabled
@@ -101,6 +101,8 @@ fn main() {
                                             .map(|p| p.trim())
                                             .collect::<Vec<_>>());
             }
+
+            mysql_url = options.get("mysql_url");
         }
 
         let mut bot = frippy::Bot::new();
@@ -111,18 +113,27 @@ fn main() {
         bot.add_plugin(plugins::KeepNick::new());
         #[cfg(feature = "mysql")]
         {
-            use diesel;
-            use diesel::Connection;
-            match diesel::mysql::MysqlConnection::establish("mysql://user:password@address/db") {
-                Ok(conn) => {
-                    embedded_migrations::run(&conn).unwrap();
-                    bot.add_plugin(plugins::Factoids::new(conn));
+            if let Some(url) = mysql_url {
+                use diesel;
+                use diesel::Connection;
+                match diesel::mysql::MysqlConnection::establish(url) {
+                    Ok(conn) => {
+                        embedded_migrations::run(&conn).unwrap();
+                        bot.add_plugin(plugins::Factoids::new(conn));
+                    }
+                    Err(e) => error!("Failed to connect to database: {}", e),
                 }
-                Err(e) => error!("Failed to connect to database: {}", e),
+            } else {
+                bot.add_plugin(plugins::Factoids::new(HashMap::new()));
             }
         }
         #[cfg(not(feature = "mysql"))]
-        bot.add_plugin(plugins::Factoids::new(HashMap::new()));
+        {
+            if let Some(_) = mysql_url {
+                error!("frippy was not built with the mysql feature")
+            }
+            bot.add_plugin(plugins::Factoids::new(HashMap::new()));
+        }
 
 
         if let Some(disabled_plugins) = disabled_plugins {

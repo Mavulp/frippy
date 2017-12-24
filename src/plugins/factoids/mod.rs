@@ -11,7 +11,7 @@ use time;
 use chrono::NaiveDateTime;
 
 use plugin::*;
-mod database;
+pub mod database;
 use self::database::{Database, DbResponse};
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
@@ -59,6 +59,23 @@ impl<T: Database> Factoids<T> {
 
         match try_lock!(self.factoids).insert(&factoid) {
             DbResponse::Success => server.send_notice(&command.source, "Successfully added"),
+            DbResponse::Failed(e) => server.send_notice(&command.source, &e),
+        }
+    }
+
+    fn remove(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
+        if command.tokens.len() < 1 {
+            return self.invalid_command(server, command);
+        }
+
+        let name = command.tokens.remove(0);
+        let count = match try_lock!(self.factoids).count(&name) {
+            Ok(c) => c,
+            Err(e) => return server.send_notice(&command.source, e),
+        };
+
+        match try_lock!(self.factoids).delete(&name, count - 1) {
+            DbResponse::Success => server.send_notice(&command.source, "Successfully removed"),
             DbResponse::Failed(e) => server.send_notice(&command.source, &e),
         }
     }
@@ -257,6 +274,7 @@ impl<T: Database> Plugin for Factoids<T> {
         let sub_command = command.tokens.remove(0);
         match sub_command.as_ref() {
             "add" => self.add(server, &mut command),
+            "remove" => self.remove(server, &mut command),
             "get" => self.get(server, &command),
             "info" => self.info(server, &command),
             "exec" => self.exec(server, command, true),

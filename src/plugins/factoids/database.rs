@@ -26,6 +26,8 @@ pub struct Factoid {
     pub created: NaiveDateTime,
 }
 
+#[cfg(feature = "mysql")]
+use self::mysql::factoids;
 #[cfg_attr(feature = "mysql", derive(Insertable))]
 #[cfg_attr(feature = "mysql", table_name="factoids")]
 pub struct NewFactoid<'a> {
@@ -40,6 +42,7 @@ pub struct NewFactoid<'a> {
 pub trait Database: Send {
     fn insert(&mut self, factoid: &NewFactoid) -> DbResponse;
     fn get(&self, name: &str, idx: i32) -> Option<Factoid>;
+    fn delete(&mut self, name: &str, idx: i32) -> DbResponse;
     fn count(&self, name: &str) -> Result<i32, &'static str>;
 }
 
@@ -65,6 +68,13 @@ impl Database for HashMap<(String, i32), Factoid> {
         self.get(&(String::from(name), idx)).map(|f| f.clone())
     }
 
+    fn delete(&mut self, name: &str, idx: i32) -> DbResponse {
+        match self.remove(&(String::from(name), idx)) {
+            Some(_) => DbResponse::Success,
+            None => DbResponse::Failed("Factoid not found"),
+        }
+    }
+
     fn count(&self, name: &str) -> Result<i32, &'static str> {
         Ok(self.iter()
                .filter(|&(&(ref n, _), _)| n == name)
@@ -72,15 +82,18 @@ impl Database for HashMap<(String, i32), Factoid> {
     }
 }
 
-// MySql
+// Diesel automatically define the factoids module as public.
+// For now this is how we keep it private.
 #[cfg(feature = "mysql")]
-table! {
-    factoids (name, idx) {
-        name -> Varchar,
-        idx -> Integer,
-        content -> Text,
-        author -> Varchar,
-        created -> Timestamp,
+mod mysql {
+    table! {
+        factoids (name, idx) {
+            name -> Varchar,
+            idx -> Integer,
+            content -> Text,
+            author -> Varchar,
+            created -> Timestamp,
+        }
     }
 }
 
@@ -88,22 +101,34 @@ table! {
 impl Database for MysqlConnection {
     fn insert(&mut self, factoid: &NewFactoid) -> DbResponse {
         use diesel;
-
         match diesel::insert_into(factoids::table)
                   .values(factoid)
                   .execute(self) {
             Ok(_) => DbResponse::Success,
-            Err(_) => DbResponse::Failed("Database error - possible duplicate"),
+            Err(e) => {
+                debug!("DB Insertion Error: {:?}", e);
+                DbResponse::Failed("Database error - possible duplicate")
+            }
         }
     }
 
     fn get(&self, name: &str, idx: i32) -> Option<Factoid> {
-        factoids::table
-            .find((name, idx))
-            .limit(1)
-            .load::<Factoid>(self)
-            .ok()
-            .and_then(|v| v.into_iter().next())
+        factoids::table.find((name, idx)).first(self).ok()
+    }
+
+    fn delete(&mut self, name: &str, idx: i32) -> DbResponse {
+        use diesel;
+        use self::factoids::columns;
+        match diesel::delete(factoids::table
+                                 .filter(columns::name.eq(name))
+                                 .filter(columns::idx.eq(idx)))
+                      .execute(self) {
+            Ok(_) => DbResponse::Success,
+            Err(e) => {
+                debug!("DB Deletion Error: {:?}", e);
+                DbResponse::Failed("Failed to delete factoid")
+            }
+        }
     }
 
     fn count(&self, name: &str) -> Result<i32, &'static str> {

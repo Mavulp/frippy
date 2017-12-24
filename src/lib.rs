@@ -34,11 +34,6 @@
 #[cfg(feature = "mysql")]
 #[macro_use]
 extern crate diesel;
-#[cfg(feature = "mysql")]
-extern crate diesel_infer_schema;
-#[cfg(feature = "mysql")]
-#[macro_use]
-extern crate diesel_migrations;
 
 #[macro_use]
 extern crate log;

@@ -118,8 +118,13 @@ fn main() {
                 use diesel::Connection;
                 match diesel::mysql::MysqlConnection::establish(url) {
                     Ok(conn) => {
-                        embedded_migrations::run(&conn).unwrap();
-                        bot.add_plugin(plugins::Factoids::new(conn));
+                        match embedded_migrations::run(&conn) {
+                            Ok(_) => bot.add_plugin(plugins::Factoids::new(conn)),
+                            Err(e) => {
+                                bot.add_plugin(plugins::Factoids::new(HashMap::new()));
+                                error!("Failed to run migrations: {}", e);
+                            }
+                        }
                     }
                     Err(e) => error!("Failed to connect to database: {}", e),
                 }

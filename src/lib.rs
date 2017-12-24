@@ -132,7 +132,7 @@ impl Bot {
     /// reactor.run(future::empty::<(), ()>()).unwrap();
     /// # }
     /// ```
-    pub fn connect(&self, reactor: &mut Core, config: &Config) {
+    pub fn connect(&self, reactor: &mut Core, config: &Config) -> Option<()> {
         info!("Plugins loaded: {}", self.plugins);
 
         let server =
@@ -140,7 +140,7 @@ impl Bot {
                 Ok(v) => v,
                 Err(e) => {
                     error!("Failed to connect: {}", e);
-                    return;
+                    return None;
                 }
             };
 
@@ -148,7 +148,10 @@ impl Bot {
 
         match server.identify() {
             Ok(_) => info!("Identified"),
-            Err(e) => error!("Failed to identify: {}", e),
+            Err(e) => {
+                error!("Failed to identify: {}", e);
+                return None;
+            }
         };
 
         // TODO Verify if we actually need to clone plugins twice
@@ -160,6 +163,7 @@ impl Bot {
             .map_err(|e| error!("Failed to process message: {}", e));
 
         reactor.handle().spawn(task);
+        Some(())
     }
 }
 

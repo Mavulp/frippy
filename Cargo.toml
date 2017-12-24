@@ -45,17 +45,17 @@ branch = 'update-to-latest-unicode'
 
 
 [dependencies.diesel]
-version = "1.0.0-beta1"
+version = "1.0.0-rc1"
 optional = true
 features = ["mysql", "chrono"]
 
 [dependencies.diesel_infer_schema]
-version = "1.0.0-beta1"
+version = "1.0.0-rc1"
 optional = true
 features = ["mysql"]
 
 [dependencies.diesel_migrations]
-version = "1.0.0-beta1"
+version = "1.0.0-rc1"
 optional = true
 features = ["mysql"]
 

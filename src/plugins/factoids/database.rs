@@ -106,8 +106,8 @@ impl Database for MysqlConnection {
                   .execute(self) {
             Ok(_) => DbResponse::Success,
             Err(e) => {
-                debug!("DB Insertion Error: {:?}", e);
-                DbResponse::Failed("Database error - possible duplicate")
+                error!("DB Insertion Error: {:?}", e);
+                DbResponse::Failed("Failed to add factoid")
             }
         }
     }
@@ -123,9 +123,15 @@ impl Database for MysqlConnection {
                                  .filter(columns::name.eq(name))
                                  .filter(columns::idx.eq(idx)))
                       .execute(self) {
-            Ok(_) => DbResponse::Success,
+            Ok(v) => {
+                if v > 0 {
+                    DbResponse::Success
+                } else {
+                    DbResponse::Failed("Could not find any factoid with that name")
+                }
+            }
             Err(e) => {
-                debug!("DB Deletion Error: {:?}", e);
+                error!("DB Deletion Error: {:?}", e);
                 DbResponse::Failed("Failed to delete factoid")
             }
         }

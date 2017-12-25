@@ -129,7 +129,7 @@ impl<T: Database> Factoids<T> {
                 };
 
                 match count {
-                    0 => server.send_notice(&command.source, &format!("{} does not exist", name)),
+                    0 => server.send_privmsg(&command.target, &format!("{} does not exist", name)),
                     1 => {
                         server.send_privmsg(&command.target,
                                             &format!("There is 1 version of {}", name))

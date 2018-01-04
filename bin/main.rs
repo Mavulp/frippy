@@ -78,7 +78,7 @@ fn main() {
 
     // Create an event loop to run the connections on.
     let mut reactor = Core::new().unwrap();
-    let mut task = false;
+    let mut futures = Vec::new();
 
     // Open a connection and add work for each config
     for config in configs {
@@ -105,11 +105,9 @@ fn main() {
             }
         }
 
-        bot.connect(&mut reactor, &config).map(|_| task = true);
+        futures.push(bot.connect(&mut reactor, &config));
     }
 
-    if task {
-        // Run the main loop forever
-        reactor.run(future::empty::<(), ()>()).unwrap();
-    }
+    // Run the bots until they throw an error
+    reactor.run(future::join_all(futures)).unwrap();
 }

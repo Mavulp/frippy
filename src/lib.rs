@@ -108,11 +108,12 @@ impl Bot {
         self.plugins.remove(name)
     }
 
-    /// This connects the `Bot` to IRC and adds a task
-    /// to the Core that was supplied.
+    /// This connects the `Bot` to IRC and returns a `Future`
+    /// which represents the bots work.
+    /// This `Future` will run forever unless it returns an error.
     ///
-    /// You need to run the core, so that frippy
-    /// can do its work.
+    /// You need to run the `Future`, so that the `Bot`
+    /// can actually do its work.
     ///
     /// # Examples
     /// ```no_run
@@ -128,11 +129,11 @@ impl Bot {
     /// let mut reactor = Core::new().unwrap();
     /// let mut bot = Bot::new();
     ///
-    /// bot.connect(&mut reactor, &config);
-    /// reactor.run(future::empty::<(), ()>()).unwrap();
+    /// let future = bot.connect(&mut reactor, &config);
+    /// reactor.run(future).unwrap();
     /// # }
     /// ```
-    pub fn connect(&self, reactor: &mut Core, config: &Config) -> Option<()> {
+    pub fn connect(&self, reactor: &mut Core, config: &Config) -> Option<Box<futures::Future<Item = (), Error = ()>>> {
         info!("Plugins loaded: {}", self.plugins);
 
         let server =
@@ -157,13 +158,12 @@ impl Bot {
         // TODO Verify if we actually need to clone plugins twice
         let plugins = self.plugins.clone();
 
-        let task = server
+        let future = server
             .stream()
             .for_each(move |message| process_msg(&server, plugins.clone(), message))
             .map_err(|e| error!("Failed to process message: {}", e));
 
-        reactor.handle().spawn(task);
-        Some(())
+        Some(Box::new(future))
     }
 }
 

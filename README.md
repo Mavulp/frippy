@@ -3,4 +3,4 @@ Frippy is an IRC bot which sends emojis used to the channel they were received f
 lets you convert from one currency to another and checks the title of html pages
 linked in the channel.  
 
-Check the config.toml file to get an idea of of how to set the bot up.
+Check the config.toml file to get an idea of how to set the bot up.

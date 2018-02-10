@@ -9,13 +9,8 @@ keywords = ["irc", "bot"]
 categories = ["network-programming"]
 description = "An IRC Bot"
 
-[lib]
-name = "frippy"
-path = "src/lib.rs"
-
 [[bin]]
 name = "frippy"
-path = "bin/main.rs"
 doc = false
 
 [dependencies]

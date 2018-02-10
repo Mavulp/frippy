@@ -68,24 +68,26 @@ impl Currency {
         Currency {}
     }
 
-    fn eval_command<'a>(&self, tokens: &'a [String]) -> Result<ConvertionRequest<'a>, ParseFloatError> {
+    fn eval_command<'a>(&self,
+                        tokens: &'a [String])
+                        -> Result<ConvertionRequest<'a>, ParseFloatError> {
         Ok(ConvertionRequest {
-            value: tokens[0].parse()?,
-            source: &tokens[1],
-            target: &tokens[2],
-        })
+               value: tokens[0].parse()?,
+               source: &tokens[1],
+               target: &tokens[2],
+           })
     }
 
-    fn convert(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn convert(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<String, String> {
 
         if command.tokens.len() < 3 {
-            return self.invalid_command(server, &command);
+            return Err(self.invalid_command(server));
         }
 
         let request = match self.eval_command(&command.tokens) {
             Ok(request) => request,
             Err(_) => {
-                return self.invalid_command(server, &command);
+                return Err(self.invalid_command(server));
             }
         };
 
@@ -97,31 +99,27 @@ impl Currency {
                                        response / 1.00000000,
                                        request.target.to_lowercase());
 
-                server.send_privmsg(&command.target, &response)
+                Ok(response)
             }
-            None => server.send_notice(&command.source, "Error while converting given currency"),
+            None => Err(String::from("An error occured during the conversion of the given currency")),
         }
     }
 
-    fn help(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
-        let help = format!("usage: {} currency value from_currency to_currency\r\n\
+    fn help(&self, server: &IrcServer) -> String {
+        format!("usage: {} currency value from_currency to_currency\r\n\
                             example: 1.5 eur usd\r\n\
                             available currencies: AUD, BGN, BRL, CAD, \
                             CHF, CNY, CZK, DKK, GBP, HKD, HRK, HUF, \
                             IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \
                             NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, \
                             TRY, USD, ZAR",
-                           server.current_nickname());
-
-        server.send_notice(&command.source, &help)
+                           server.current_nickname())
     }
 
-    fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
-        let help = format!("Incorrect Command. \
+    fn invalid_command(&self, server: &IrcServer) -> String {
+        format!("Incorrect Command. \
                            Send \"{} currency help\" for help.",
-                           server.current_nickname());
-
-        server.send_notice(&command.source, &help)
+                   server.current_nickname())
     }
 }
 
@@ -137,12 +135,26 @@ impl Plugin for Currency {
     fn command(&self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
 
         if command.tokens.is_empty() {
-            return self.invalid_command(server, &command);
+            return server.send_notice(&command.source, &self.invalid_command(server));
         }
 
         match command.tokens[0].as_ref() {
-            "help" => self.help(server, &mut command),
-            _ => self.convert(server, command),
+            "help" => server.send_notice(&command.source, &self.help(server)),
+            _ => match self.convert(server, &mut command) {
+                Ok(msg) => server.send_privmsg(&command.target, &msg),
+                Err(msg) => server.send_notice(&command.source, &msg),
+            }
+        }
+    }
+
+    fn evaluate(&self, server: &IrcServer, mut command: PluginCommand) -> Result<String, String>{
+        if command.tokens.is_empty() {
+            return Err(self.invalid_command(server));
+        }
+
+        match command.tokens[0].as_ref() {
+            "help" => Ok(self.help(server)),
+            _ => self.convert(server, &mut command),
         }
     }
 }

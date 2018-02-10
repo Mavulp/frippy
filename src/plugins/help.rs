@@ -10,10 +10,6 @@ impl Help {
     pub fn new() -> Help {
         Help {}
     }
-
-    fn help(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
-        server.send_notice(&command.source, "Help has not been added yet.")
-    }
 }
 
 impl Plugin for Help {
@@ -26,7 +22,11 @@ impl Plugin for Help {
     }
 
     fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
-        self.help(server, command)
+        server.send_notice(&command.source, "Help has not been added yet.")
+    }
+
+    fn evaluate(&self, _: &IrcServer, _: PluginCommand) -> Result<String, String> {
+        Err(String::from("Help has not been added yet."))
     }
 }
 

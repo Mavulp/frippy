@@ -13,6 +13,8 @@ pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
     fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError>;
     /// Handles any command directed at this plugin.
     fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError>;
+    /// Should work like command but return a String instead of sending messages to IRC.
+    fn evaluate(&self, server: &IrcServer, command: PluginCommand) -> Result<String, String>;
 }
 
 /// `PluginName` is required by `Plugin`.  

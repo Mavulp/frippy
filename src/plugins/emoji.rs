@@ -36,13 +36,12 @@ impl Emoji {
         Emoji {}
     }
 
-    fn emoji(&self, server: &IrcServer, content: &str, target: &str) -> Result<(), IrcError> {
-        let names = self.return_emojis(content)
+    fn emoji(&self, content: &str) -> String {
+        self.return_emojis(content)
             .iter()
             .map(|e| e.to_string())
-            .collect::<Vec<String>>();
-
-        server.send_privmsg(target, &names.join(", "))
+            .collect::<Vec<String>>()
+            .join(", ")
     }
 
     fn return_emojis(&self, string: &str) -> Vec<EmojiHandle> {
@@ -108,7 +107,8 @@ impl Plugin for Emoji {
     fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
-                self.emoji(server, content, message.response_target().unwrap())
+                server.send_privmsg(message.response_target().unwrap(),
+                                    &self.emoji(content))
             }
             _ => Ok(()),
         }
@@ -117,6 +117,15 @@ impl Plugin for Emoji {
     fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
         server.send_notice(&command.source,
                            "This Plugin does not implement any commands.")
+    }
+
+    fn evaluate(&self, _: &IrcServer, command: PluginCommand) -> Result<String, String> {
+        let emojis = self.emoji(&command.tokens[0]);
+        if emojis.is_empty() {
+            Ok(emojis)
+        } else {
+            Err(String::from("No emojis were found."))
+        }
     }
 }
 

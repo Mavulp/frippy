@@ -54,6 +54,10 @@ impl Plugin for KeepNick {
         server.send_notice(&command.source,
                            "This Plugin does not implement any commands.")
     }
+
+    fn evaluate(&self, _: &IrcServer, _: PluginCommand) -> Result<String, String> {
+        Err(String::from("This Plugin does not implement any commands."))
+    }
 }
 
 #[cfg(test)]

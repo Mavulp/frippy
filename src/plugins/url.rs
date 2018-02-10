@@ -95,11 +95,11 @@ impl Url {
         }
     }
 
-    fn url(&self, server: &IrcServer, message: &str, target: &str) -> Result<(), IrcError> {
-        let url = match self.grep_url(message) {
+    fn url(&self, text: &str) -> Result<String, &str> {
+        let url = match self.grep_url(text) {
             Some(url) => url,
             None => {
-                return Ok(());
+                return Err("No Url was found.")
             }
         };
 
@@ -109,18 +109,18 @@ impl Url {
 
                 let doc = Document::from(body.as_ref());
                 if let Some(title) = doc.find(Name("title")).next() {
-                    let text = title.children().next().unwrap();
-                    let message = text.as_text().unwrap().trim().replace("\n", "|");
-                    debug!("Title: {:?}", text);
-                    debug!("Message: {:?}", message);
+                    let title = title.children().next().unwrap();
+                    let title_text = title.as_text().unwrap().trim().replace("\n", "|");
+                    debug!("Title: {:?}", title);
+                    debug!("Text: {:?}", title_text);
 
-                    server.send_privmsg(target, &message)
+                    Ok(title_text)
 
                 } else {
-                    Ok(())
+                    Err("No title was found.")
                 }
             }
-            None => Ok(()),
+            None => Err("Failed to download document.")
         }
     }
 }
@@ -136,7 +136,10 @@ impl Plugin for Url {
     fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
-                self.url(server, content, message.response_target().unwrap())
+                match self.url(content) {
+                    Ok(title) => server.send_privmsg(&message.response_target().unwrap(), &title),
+                    Err(_) => Ok(()),
+                }
             }
             _ => Ok(()),
         }
@@ -145,6 +148,10 @@ impl Plugin for Url {
     fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
         server.send_notice(&command.source,
                            "This Plugin does not implement any commands.")
+    }
+
+    fn evaluate(&self, _: &IrcServer, command: PluginCommand) -> Result<String, String> {
+        self.url(&command.tokens[0]).map_err(|e| String::from(e))
     }
 }
 

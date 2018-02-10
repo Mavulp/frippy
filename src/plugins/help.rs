@@ -1,5 +1,5 @@
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
+use irc::error::IrcError;
 
 use plugin::*;
 
@@ -13,19 +13,19 @@ impl Help {
 }
 
 impl Plugin for Help {
-    fn is_allowed(&self, _: &IrcServer, _: &Message) -> bool {
+    fn is_allowed(&self, _: &IrcClient, _: &Message) -> bool {
         false
     }
 
-    fn execute(&self, _: &IrcServer, _: &Message) -> Result<(), IrcError> {
+    fn execute(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
         panic!("Help does not implement the execute function!")
     }
 
-    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, server: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
         server.send_notice(&command.source, "Help has not been added yet.")
     }
 
-    fn evaluate(&self, _: &IrcServer, _: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
         Err(String::from("Help has not been added yet."))
     }
 }

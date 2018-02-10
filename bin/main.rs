@@ -1,16 +1,14 @@
 extern crate frippy;
 extern crate time;
-extern crate tokio_core;
+extern crate irc;
 extern crate glob;
-extern crate futures;
 
 #[macro_use]
 extern crate log;
 
-use log::{LogRecord, LogLevel, LogLevelFilter, LogMetadata};
+use log::{Record, Level, LevelFilter, Metadata};
 
-use tokio_core::reactor::Core;
-use futures::future;
+use irc::client::reactor::IrcReactor;
 use glob::glob;
 
 use frippy::plugins;
@@ -19,13 +17,13 @@ use frippy::Config;
 struct Logger;
 
 impl log::Log for Logger {
-    fn enabled(&self, metadata: &LogMetadata) -> bool {
+    fn enabled(&self, metadata: &Metadata) -> bool {
         metadata.target().contains("frippy")
     }
 
-    fn log(&self, record: &LogRecord) {
+    fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            if record.metadata().level() >= LogLevel::Debug {
+            if record.metadata().level() >= Level::Debug {
                 println!("[{}]({}) {} -> {}",
                          time::now().rfc822(),
                          record.level(),
@@ -39,21 +37,21 @@ impl log::Log for Logger {
             }
         }
     }
+
+    fn flush(&self) {}
 }
+
+static LOGGER: Logger = Logger;
 
 fn main() {
 
-    let log_level = if cfg!(debug_assertions) {
-        LogLevelFilter::Debug
-    } else {
-        LogLevelFilter::Info
-    };
+    log::set_max_level(if cfg!(debug_assertions) {
+                           LevelFilter::Debug
+                       } else {
+                           LevelFilter::Info
+                       });
 
-    log::set_logger(|max_log_level| {
-                        max_log_level.set(log_level);
-                        Box::new(Logger)
-                    })
-            .unwrap();
+    log::set_logger(&LOGGER).unwrap();
 
     // Load all toml files in the configs directory
     let mut configs = Vec::new();
@@ -77,8 +75,7 @@ fn main() {
     }
 
     // Create an event loop to run the connections on.
-    let mut reactor = Core::new().unwrap();
-    let mut futures = Vec::new();
+    let mut reactor = IrcReactor::new().unwrap();
 
     // Open a connection and add work for each config
     for config in configs {
@@ -86,7 +83,10 @@ fn main() {
         let mut disabled_plugins = None;
         if let &Some(ref options) = &config.options {
             if let Some(disabled) = options.get("disabled_plugins") {
-                disabled_plugins = Some(disabled.split(",").map(|p| p.trim()).collect::<Vec<_>>());
+                disabled_plugins = Some(disabled
+                                            .split(",")
+                                            .map(|p| p.trim())
+                                            .collect::<Vec<_>>());
             }
         }
 
@@ -105,9 +105,9 @@ fn main() {
             }
         }
 
-        futures.push(bot.connect(&mut reactor, &config));
+        bot.connect(&mut reactor, &config).expect("Failed to connect");
     }
 
-    // Run the bots until they throw an error
-    reactor.run(future::join_all(futures)).unwrap();
+    // Run the bots until they throw an error - an error could be loss of connection
+    reactor.run().unwrap();
 }

@@ -6,24 +6,22 @@
 //!
 //! ## Examples
 //! ```no_run
-//! # extern crate tokio_core;
-//! # extern crate futures;
+//! # extern crate irc;
 //! # extern crate frippy;
 //! # fn main() {
 //! use frippy::{plugins, Config, Bot};
-//! use tokio_core::reactor::Core;
-//! use futures::future;
+//! use irc::client::reactor::IrcReactor;
 //!
 //! let config = Config::load("config.toml").unwrap();
-//! let mut reactor = Core::new().unwrap();
+//! let mut reactor = IrcReactor::new().unwrap();
 //! let mut bot = Bot::new();
 //!
 //! bot.add_plugin(plugins::Help::new());
 //! bot.add_plugin(plugins::Emoji::new());
 //! bot.add_plugin(plugins::Currency::new());
 //!
-//! bot.connect(&mut reactor, &config);
-//! reactor.run(future::empty::<(), ()>()).unwrap();
+//! bot.connect(&mut reactor, &config).unwrap();
+//! reactor.run().unwrap();
 //! # }
 //! ```
 //!
@@ -39,8 +37,6 @@ extern crate lazy_static;
 extern crate frippy_derive;
 
 extern crate irc;
-extern crate futures;
-extern crate tokio_core;
 
 pub mod plugin;
 pub mod plugins;
@@ -50,9 +46,8 @@ use std::collections::HashMap;
 use std::thread::spawn;
 use std::sync::Arc;
 
-use tokio_core::reactor::Core;
 pub use irc::client::prelude::*;
-pub use irc::error::Error as IrcError;
+pub use irc::error::IrcError;
 
 use plugin::*;
 
@@ -108,66 +103,57 @@ impl Bot {
         self.plugins.remove(name)
     }
 
-    /// This connects the `Bot` to IRC and returns a `Future`
-    /// which represents the bots work.
-    /// This `Future` will run forever unless it returns an error.
+    /// This connects the `Bot` to IRC and creates a task on the `IrcReactor`
+    /// which returns an Ok if the connection was cleanly closed and an Err
+    /// if the connection was lostwhich returns an Ok if the connection was cleanly closed and an Err
+    /// if the connection was lost.
     ///
-    /// You need to run the `Future`, so that the `Bot`
+    /// You need to run the `IrcReactor`, so that the `Bot`
     /// can actually do its work.
     ///
     /// # Examples
     /// ```no_run
-    /// # extern crate tokio_core;
-    /// # extern crate futures;
+    /// # extern crate irc;
     /// # extern crate frippy;
     /// # fn main() {
     /// use frippy::{Config, Bot};
-    /// use tokio_core::reactor::Core;
-    /// use futures::future;
+    /// use irc::client::reactor::IrcReactor;
     ///
     /// let config = Config::load("config.toml").unwrap();
-    /// let mut reactor = Core::new().unwrap();
+    /// let mut reactor = IrcReactor::new().unwrap();
     /// let mut bot = Bot::new();
     ///
-    /// let future = bot.connect(&mut reactor, &config);
-    /// reactor.run(future).unwrap();
+    /// bot.connect(&mut reactor, &config).unwrap();
+    /// reactor.run().unwrap();
     /// # }
     /// ```
-    pub fn connect(&self, reactor: &mut Core, config: &Config) -> Option<Box<futures::Future<Item = (), Error = ()>>> {
+    pub fn connect(&self, reactor: &mut IrcReactor, config: &Config) -> Result<(), String> {
         info!("Plugins loaded: {}", self.plugins);
 
-        let server =
-            match IrcServer::new_future(reactor.handle(), config).and_then(|f| {reactor.run(f)}) {
-                Ok(v) => v,
-                Err(e) => {
-                    error!("Failed to connect: {}", e);
-                    return None;
-                }
-            };
+        let client = match reactor.prepare_client_and_connect(config) {
+            Ok(v) => v,
+            Err(e) => return Err(format!("Failed to connect: {}", e)),
+        };
 
         info!("Connected to server");
 
-        match server.identify() {
+        match client.identify() {
             Ok(_) => info!("Identified"),
-            Err(e) => {
-                error!("Failed to identify: {}", e);
-                return None;
-            }
+            Err(e) => return Err(format!("Failed to identify: {}", e)),
         };
 
         // TODO Verify if we actually need to clone plugins twice
         let plugins = self.plugins.clone();
 
-        let future = server
-            .stream()
-            .for_each(move |message| process_msg(&server, plugins.clone(), message))
-            .map_err(|e| error!("Failed to process message: {}", e));
+        reactor.register_client_with_handler(client, move |client, message| {
+            process_msg(&client, plugins.clone(), message)
+        });
 
-        Some(Box::new(future))
+        Ok(())
     }
 }
 
-fn process_msg(server: &IrcServer,
+fn process_msg(server: &IrcClient,
                mut plugins: ThreadedPlugins,
                message: Message)
                -> Result<(), IrcError> {
@@ -215,7 +201,7 @@ impl ThreadedPlugins {
         self.plugins.remove(&name.to_lowercase()).map(|_| ())
     }
 
-    pub fn execute_plugins(&mut self, server: &IrcServer, message: Message) {
+    pub fn execute_plugins(&mut self, server: &IrcClient, message: Message) {
         let message = Arc::new(message);
 
         for (name, plugin) in self.plugins.clone() {
@@ -242,7 +228,7 @@ impl ThreadedPlugins {
     }
 
     pub fn handle_command(&mut self,
-                          server: &IrcServer,
+                          server: &IrcClient,
                           mut command: PluginCommand)
                           -> Result<(), IrcError> {
 

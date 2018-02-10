@@ -1,5 +1,5 @@
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
+use irc::error::IrcError;
 
 use plugin::*;
 
@@ -11,7 +11,7 @@ impl KeepNick {
         KeepNick {}
     }
 
-    fn check_nick(&self, server: &IrcServer, leaver: &str) -> Result<(), IrcError> {
+    fn check_nick(&self, server: &IrcClient, leaver: &str) -> Result<(), IrcError> {
         let cfg_nick = match server.config().nickname {
             Some(ref nick) => nick.clone(),
             None => return Ok(()),
@@ -34,14 +34,14 @@ impl KeepNick {
 }
 
 impl Plugin for KeepNick {
-    fn is_allowed(&self, _: &IrcServer, message: &Message) -> bool {
+    fn is_allowed(&self, _: &IrcClient, message: &Message) -> bool {
         match message.command {
             Command::QUIT(_) => true,
             _ => false,
         }
     }
 
-    fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
+    fn execute(&self, server: &IrcClient, message: &Message) -> Result<(), IrcError> {
         match message.command {
             Command::QUIT(ref nick) => {
                 self.check_nick(server, &nick.clone().unwrap_or_else(|| String::new()))
@@ -50,12 +50,12 @@ impl Plugin for KeepNick {
         }
     }
 
-    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, server: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
         server.send_notice(&command.source,
                            "This Plugin does not implement any commands.")
     }
 
-    fn evaluate(&self, _: &IrcServer, _: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
         Err(String::from("This Plugin does not implement any commands."))
     }
 }

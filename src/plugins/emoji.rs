@@ -3,7 +3,7 @@ extern crate unicode_names;
 use std::fmt;
 
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
+use irc::error::IrcError;
 
 use plugin::*;
 
@@ -97,14 +97,14 @@ impl Emoji {
 }
 
 impl Plugin for Emoji {
-    fn is_allowed(&self, _: &IrcServer, message: &Message) -> bool {
+    fn is_allowed(&self, _: &IrcClient, message: &Message) -> bool {
         match message.command {
             Command::PRIVMSG(_, _) => true,
             _ => false,
         }
     }
 
-    fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
+    fn execute(&self, server: &IrcClient, message: &Message) -> Result<(), IrcError> {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
                 server.send_privmsg(message.response_target().unwrap(),
@@ -114,12 +114,12 @@ impl Plugin for Emoji {
         }
     }
 
-    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, server: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
         server.send_notice(&command.source,
                            "This Plugin does not implement any commands.")
     }
 
-    fn evaluate(&self, _: &IrcServer, command: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
         let emojis = self.emoji(&command.tokens[0]);
         if emojis.is_empty() {
             Ok(emojis)

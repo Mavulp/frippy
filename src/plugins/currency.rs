@@ -6,7 +6,7 @@ use std::io::Read;
 use std::num::ParseFloatError;
 
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
+use irc::error::IrcError;
 
 use self::reqwest::Client;
 use self::reqwest::header::Connection;
@@ -78,7 +78,7 @@ impl Currency {
            })
     }
 
-    fn convert(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<String, String> {
+    fn convert(&self, server: &IrcClient, command: &mut PluginCommand) -> Result<String, String> {
 
         if command.tokens.len() < 3 {
             return Err(self.invalid_command(server));
@@ -105,7 +105,7 @@ impl Currency {
         }
     }
 
-    fn help(&self, server: &IrcServer) -> String {
+    fn help(&self, server: &IrcClient) -> String {
         format!("usage: {} currency value from_currency to_currency\r\n\
                             example: 1.5 eur usd\r\n\
                             available currencies: AUD, BGN, BRL, CAD, \
@@ -116,7 +116,7 @@ impl Currency {
                            server.current_nickname())
     }
 
-    fn invalid_command(&self, server: &IrcServer) -> String {
+    fn invalid_command(&self, server: &IrcClient) -> String {
         format!("Incorrect Command. \
                            Send \"{} currency help\" for help.",
                    server.current_nickname())
@@ -124,15 +124,15 @@ impl Currency {
 }
 
 impl Plugin for Currency {
-    fn is_allowed(&self, _: &IrcServer, _: &Message) -> bool {
+    fn is_allowed(&self, _: &IrcClient, _: &Message) -> bool {
         false
     }
 
-    fn execute(&self, _: &IrcServer, _: &Message) -> Result<(), IrcError> {
+    fn execute(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
         panic!("Currency does not implement the execute function!")
     }
 
-    fn command(&self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, server: &IrcClient, mut command: PluginCommand) -> Result<(), IrcError> {
 
         if command.tokens.is_empty() {
             return server.send_notice(&command.source, &self.invalid_command(server));
@@ -147,7 +147,7 @@ impl Plugin for Currency {
         }
     }
 
-    fn evaluate(&self, server: &IrcServer, mut command: PluginCommand) -> Result<String, String>{
+    fn evaluate(&self, server: &IrcClient, mut command: PluginCommand) -> Result<String, String>{
         if command.tokens.is_empty() {
             return Err(self.invalid_command(server));
         }

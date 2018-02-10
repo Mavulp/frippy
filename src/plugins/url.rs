@@ -3,7 +3,7 @@ extern crate reqwest;
 extern crate select;
 
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
+use irc::error::IrcError;
 
 use self::regex::Regex;
 
@@ -126,14 +126,14 @@ impl Url {
 }
 
 impl Plugin for Url {
-    fn is_allowed(&self, _: &IrcServer, message: &Message) -> bool {
+    fn is_allowed(&self, _: &IrcClient, message: &Message) -> bool {
         match message.command {
             Command::PRIVMSG(_, ref msg) => RE.is_match(msg),
             _ => false,
         }
     }
 
-    fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
+    fn execute(&self, server: &IrcClient, message: &Message) -> Result<(), IrcError> {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
                 match self.url(content) {
@@ -145,12 +145,12 @@ impl Plugin for Url {
         }
     }
 
-    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, server: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
         server.send_notice(&command.source,
                            "This Plugin does not implement any commands.")
     }
 
-    fn evaluate(&self, _: &IrcServer, command: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
         self.url(&command.tokens[0]).map_err(|e| String::from(e))
     }
 }

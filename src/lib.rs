@@ -59,7 +59,7 @@ pub struct Bot {
 
 impl Bot {
     /// Creates a `Bot`.
-    /// By itself the bot only responds to a few simple ctcp commands
+    /// By itself the bot only responds to a few simple CTCP commands
     /// defined per config file.
     /// Any other functionality has to be provided by plugins
     /// which need to implement [`Plugin`](plugin/trait.Plugin.html).
@@ -73,7 +73,7 @@ impl Bot {
         Bot { plugins: ThreadedPlugins::new() }
     }
 
-    /// Adds the plugin.
+    /// Adds the [`Plugin`](plugin/trait.Plugin.html).
     /// These plugins will be used to evaluate incoming messages from IRC.
     ///
     /// # Examples
@@ -87,7 +87,7 @@ impl Bot {
         self.plugins.add(plugin);
     }
 
-    /// Removes a plugin based on its name.
+    /// Removes a [`Plugin`](plugin/trait.Plugin.html) based on its name.
     /// The binary currently uses this to disable plugins
     /// based on user configuration.
     ///
@@ -103,12 +103,10 @@ impl Bot {
         self.plugins.remove(name)
     }
 
-    /// This connects the `Bot` to IRC and creates a task on the `IrcReactor`
-    /// which returns an Ok if the connection was cleanly closed and an Err
-    /// if the connection was lostwhich returns an Ok if the connection was cleanly closed and an Err
-    /// if the connection was lost.
+    /// This connects the `Bot` to IRC and creates a task on the [`IrcReactor`](../irc/client/reactor/struct.IrcReactor.html)
+    /// which returns an Ok if the connection was cleanly closed and an Err if the connection was lost.
     ///
-    /// You need to run the `IrcReactor`, so that the `Bot`
+    /// You need to run the [`IrcReactor`](../irc/client/reactor/struct.IrcReactor.html), so that the `Bot`
     /// can actually do its work.
     ///
     /// # Examples

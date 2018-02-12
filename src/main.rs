@@ -1,3 +1,6 @@
+#![cfg_attr(feature="clippy", feature(plugin))]
+#![cfg_attr(feature="clippy", plugin(clippy))]
+
 extern crate frippy;
 extern crate time;
 extern crate irc;
@@ -81,10 +84,10 @@ fn main() {
     for config in configs {
 
         let mut disabled_plugins = None;
-        if let &Some(ref options) = &config.options {
+        if let Some(ref options) = config.options {
             if let Some(disabled) = options.get("disabled_plugins") {
                 disabled_plugins = Some(disabled
-                                            .split(",")
+                                            .split(',')
                                             .map(|p| p.trim())
                                             .collect::<Vec<_>>());
             }
@@ -96,11 +99,12 @@ fn main() {
         bot.add_plugin(plugins::Emoji::new());
         bot.add_plugin(plugins::Currency::new());
         bot.add_plugin(plugins::KeepNick::new());
+        bot.add_plugin(plugins::Tell::new());
 
         if let Some(disabled_plugins) = disabled_plugins {
             for name in disabled_plugins {
-                if let None = bot.remove_plugin(name) {
-                    error!("{:?} was not found - could not disable", name);
+                if bot.remove_plugin(name).is_none() {
+                    error!("\"{}\" was not found - could not disable", name);
                 }
             }
         }

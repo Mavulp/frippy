@@ -4,13 +4,19 @@ use std::fmt;
 use irc::client::prelude::*;
 use irc::error::IrcError;
 
+pub enum ExecutionStatus {
+    Done,
+    Err(IrcError),
+    RequiresThread,
+}
+
 /// `Plugin` has to be implemented for any struct that should be usable
 /// as a plugin in frippy.
 pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
     /// This should return true if the `Plugin` wants to do work on the message.
-    fn is_allowed(&self, server: &IrcClient, message: &Message) -> bool;
+    fn execute(&self, server: &IrcClient, message: &Message) -> ExecutionStatus;
     /// Handles messages which are not commands but still necessary.
-    fn execute(&self, server: &IrcClient, message: &Message) -> Result<(), IrcError>;
+    fn execute_threaded(&self, server: &IrcClient, message: &Message) -> Result<(), IrcError>;
     /// Handles any command directed at this plugin.
     fn command(&self, server: &IrcClient, command: PluginCommand) -> Result<(), IrcError>;
     /// Should work like command but return a String instead of sending messages to IRC.

@@ -78,16 +78,15 @@ impl Currency {
            })
     }
 
-    fn convert(&self, server: &IrcClient, command: &mut PluginCommand) -> Result<String, String> {
-
+    fn convert(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<String, String> {
         if command.tokens.len() < 3 {
-            return Err(self.invalid_command(server));
+            return Err(self.invalid_command(client));
         }
 
         let request = match self.eval_command(&command.tokens) {
             Ok(request) => request,
             Err(_) => {
-                return Err(self.invalid_command(server));
+                return Err(self.invalid_command(client));
             }
         };
 
@@ -105,56 +104,56 @@ impl Currency {
         }
     }
 
-    fn help(&self, server: &IrcClient) -> String {
+    fn help(&self, client: &IrcClient) -> String {
         format!("usage: {} currency value from_currency to_currency\r\n\
-                            example: 1.5 eur usd\r\n\
+                            example: {0} currency 1.5 eur usd\r\n\
                             available currencies: AUD, BGN, BRL, CAD, \
                             CHF, CNY, CZK, DKK, GBP, HKD, HRK, HUF, \
                             IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \
                             NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, \
                             TRY, USD, ZAR",
-                           server.current_nickname())
+                           client.current_nickname())
     }
 
-    fn invalid_command(&self, server: &IrcClient) -> String {
+    fn invalid_command(&self, client: &IrcClient) -> String {
         format!("Incorrect Command. \
                            Send \"{} currency help\" for help.",
-                   server.current_nickname())
+                   client.current_nickname())
     }
 }
 
 impl Plugin for Currency {
-    fn is_allowed(&self, _: &IrcClient, _: &Message) -> bool {
-        false
+    fn execute(&self, _: &IrcClient, _: &Message) -> ExecutionStatus {
+        ExecutionStatus::Done
     }
 
-    fn execute(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
         panic!("Currency does not implement the execute function!")
     }
 
-    fn command(&self, server: &IrcClient, mut command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), IrcError> {
 
         if command.tokens.is_empty() {
-            return server.send_notice(&command.source, &self.invalid_command(server));
+            return client.send_notice(&command.source, &self.invalid_command(client));
         }
 
         match command.tokens[0].as_ref() {
-            "help" => server.send_notice(&command.source, &self.help(server)),
-            _ => match self.convert(server, &mut command) {
-                Ok(msg) => server.send_privmsg(&command.target, &msg),
-                Err(msg) => server.send_notice(&command.source, &msg),
+            "help" => client.send_notice(&command.source, &self.help(client)),
+            _ => match self.convert(client, &mut command) {
+                Ok(msg) => client.send_privmsg(&command.target, &msg),
+                Err(msg) => client.send_notice(&command.source, &msg),
             }
         }
     }
 
-    fn evaluate(&self, server: &IrcClient, mut command: PluginCommand) -> Result<String, String>{
+    fn evaluate(&self, client: &IrcClient, mut command: PluginCommand) -> Result<String, String>{
         if command.tokens.is_empty() {
-            return Err(self.invalid_command(server));
+            return Err(self.invalid_command(client));
         }
 
         match command.tokens[0].as_ref() {
-            "help" => Ok(self.help(server)),
-            _ => self.convert(server, &mut command),
+            "help" => Ok(self.help(client)),
+            _ => self.convert(client, &mut command),
         }
     }
 }

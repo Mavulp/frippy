@@ -13,16 +13,16 @@ impl Help {
 }
 
 impl Plugin for Help {
-    fn is_allowed(&self, _: &IrcClient, _: &Message) -> bool {
-        false
+    fn execute(&self, _: &IrcClient, _: &Message) -> ExecutionStatus {
+        ExecutionStatus::Done
     }
 
-    fn execute(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
-        panic!("Help does not implement the execute function!")
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
+        panic!("Help should not use threading")
     }
 
-    fn command(&self, server: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
-        server.send_notice(&command.source, "Help has not been added yet.")
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
+        client.send_notice(&command.source, "Help has not been added yet.")
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {

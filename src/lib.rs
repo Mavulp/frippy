@@ -146,7 +146,7 @@ impl Bot {
         let plugins = self.plugins.clone();
 
         reactor.register_client_with_handler(client, move |client, message| {
-            process_msg(&client, plugins.clone(), message)
+            process_msg(client, plugins.clone(), message)
         });
 
         Ok(())
@@ -206,23 +206,27 @@ impl ThreadedPlugins {
 
         for (name, plugin) in self.plugins.clone() {
             // Send the message to the plugin if the plugin needs it
-            if plugin.is_allowed(server, &message) {
+            match plugin.execute(server, &message) {
+                ExecutionStatus::Done => (),
+                ExecutionStatus::Err(e) => error!("Error in {} - {}", name, e),
+                ExecutionStatus::RequiresThread => {
 
-                debug!("Executing {} with {}",
-                       name,
-                       message.to_string().replace("\r\n", ""));
+                    debug!("Spawning thread to execute {} with {}",
+                           name,
+                           message.to_string().replace("\r\n", ""));
 
-                // Clone everything before the move - the server uses an Arc internally too
-                let plugin = Arc::clone(&plugin);
-                let message = Arc::clone(&message);
-                let server = server.clone();
+                    // Clone everything before the move - the server uses an Arc internally too
+                    let plugin = Arc::clone(&plugin);
+                    let message = Arc::clone(&message);
+                    let server = server.clone();
 
-                // Execute the plugin in another thread
-                spawn(move || {
-                          if let Err(e) = plugin.execute(&server, &message) {
-                              error!("Error in {} - {}", name, e);
-                          };
-                      });
+                    // Execute the plugin in another thread
+                    spawn(move || {
+                        if let Err(e) = plugin.execute_threaded(&server, &message) {
+                            error!("Error in {} - {}", name, e);
+                        };
+                    });
+                }
             }
         }
     }

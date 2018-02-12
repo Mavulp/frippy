@@ -90,7 +90,7 @@ impl Url {
             }
             Err(e) => {
                 debug!("Bad response from {:?}: ({})", url, e);
-                return None;
+                None
             }
         }
     }
@@ -126,18 +126,22 @@ impl Url {
 }
 
 impl Plugin for Url {
-    fn is_allowed(&self, _: &IrcClient, message: &Message) -> bool {
+    fn execute(&self, _: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::PRIVMSG(_, ref msg) => RE.is_match(msg),
-            _ => false,
+            Command::PRIVMSG(_, ref msg) => if RE.is_match(msg) {
+                ExecutionStatus::RequiresThread
+            } else {
+                ExecutionStatus::Done
+            },
+            _ => ExecutionStatus::Done,
         }
     }
 
-    fn execute(&self, server: &IrcClient, message: &Message) -> Result<(), IrcError> {
+    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), IrcError> {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
                 match self.url(content) {
-                    Ok(title) => server.send_privmsg(&message.response_target().unwrap(), &title),
+                    Ok(title) => client.send_privmsg(message.response_target().unwrap(), &title),
                     Err(_) => Ok(()),
                 }
             }
@@ -145,13 +149,13 @@ impl Plugin for Url {
         }
     }
 
-    fn command(&self, server: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
-        server.send_notice(&command.source,
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
+        client.send_notice(&command.source,
                            "This Plugin does not implement any commands.")
     }
 
     fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
-        self.url(&command.tokens[0]).map_err(|e| String::from(e))
+        self.url(&command.tokens[0]).map_err(String::from)
     }
 }
 

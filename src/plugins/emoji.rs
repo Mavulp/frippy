@@ -97,25 +97,25 @@ impl Emoji {
 }
 
 impl Plugin for Emoji {
-    fn is_allowed(&self, _: &IrcClient, message: &Message) -> bool {
-        match message.command {
-            Command::PRIVMSG(_, _) => true,
-            _ => false,
-        }
-    }
-
-    fn execute(&self, server: &IrcClient, message: &Message) -> Result<(), IrcError> {
+    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
-                server.send_privmsg(message.response_target().unwrap(),
-                                    &self.emoji(content))
+                match client.send_privmsg(message.response_target().unwrap(),
+                                          &self.emoji(content)) {
+                    Ok(_) => ExecutionStatus::Done,
+                    Err(e) => ExecutionStatus::Err(e),
+                }
             }
-            _ => Ok(()),
+            _ => ExecutionStatus::Done,
         }
     }
 
-    fn command(&self, server: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
-        server.send_notice(&command.source,
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
+        panic!("Emoji should not use threading")
+    }
+
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
+        client.send_notice(&command.source,
                            "This Plugin does not implement any commands.")
     }
 

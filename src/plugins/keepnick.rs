@@ -11,47 +11,47 @@ impl KeepNick {
         KeepNick {}
     }
 
-    fn check_nick(&self, server: &IrcClient, leaver: &str) -> Result<(), IrcError> {
-        let cfg_nick = match server.config().nickname {
+    fn check_nick(&self, client: &IrcClient, leaver: &str) -> ExecutionStatus {
+        let cfg_nick = match client.config().nickname {
             Some(ref nick) => nick.clone(),
-            None => return Ok(()),
+            None => return ExecutionStatus::Done,
         };
 
         if leaver != cfg_nick {
-            return Ok(());
+            return ExecutionStatus::Done;
         }
 
-        let server_nick = server.current_nickname();
+        let client_nick = client.current_nickname();
 
-        if server_nick != cfg_nick {
-            info!("Trying to switch nick from {} to {}", server_nick, cfg_nick);
-            server.send(Command::NICK(cfg_nick))
+        if client_nick != cfg_nick {
+            info!("Trying to switch nick from {} to {}", client_nick, cfg_nick);
+            match client.send(Command::NICK(cfg_nick)) {
+                Ok(_) => ExecutionStatus::Done,
+                Err(e) => ExecutionStatus::Err(e),
+            }
 
         } else {
-            Ok(())
+            ExecutionStatus::Done
         }
     }
 }
 
 impl Plugin for KeepNick {
-    fn is_allowed(&self, _: &IrcClient, message: &Message) -> bool {
-        match message.command {
-            Command::QUIT(_) => true,
-            _ => false,
-        }
-    }
-
-    fn execute(&self, server: &IrcClient, message: &Message) -> Result<(), IrcError> {
+    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
             Command::QUIT(ref nick) => {
-                self.check_nick(server, &nick.clone().unwrap_or_else(|| String::new()))
+                self.check_nick(client, &nick.clone().unwrap_or_else(String::new))
             }
-            _ => Ok(()),
+            _ => ExecutionStatus::Done,
         }
     }
 
-    fn command(&self, server: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
-        server.send_notice(&command.source,
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
+        panic!("Tell should not use threading")
+    }
+
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
+        client.send_notice(&command.source,
                            "This Plugin does not implement any commands.")
     }
 

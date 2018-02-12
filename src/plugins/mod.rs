@@ -2,11 +2,13 @@
 mod help;
 mod url;
 mod emoji;
+mod tell;
 mod currency;
 mod keepnick;
 
 pub use self::help::Help;
 pub use self::url::Url;
 pub use self::emoji::Emoji;
+pub use self::tell::Tell;
 pub use self::currency::Currency;
 pub use self::keepnick::KeepNick;

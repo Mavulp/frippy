@@ -1,15 +1,15 @@
-#![cfg_attr(feature="clippy", feature(plugin))]
-#![cfg_attr(feature="clippy", plugin(clippy))]
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
 
 extern crate frippy;
-extern crate time;
-extern crate irc;
 extern crate glob;
+extern crate irc;
+extern crate time;
 
 #[macro_use]
 extern crate log;
 
-use log::{Record, Level, LevelFilter, Metadata};
+use log::{Level, LevelFilter, Metadata, Record};
 
 use irc::client::reactor::IrcReactor;
 use glob::glob;
@@ -27,16 +27,20 @@ impl log::Log for Logger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             if record.metadata().level() >= Level::Debug {
-                println!("[{}]({}) {} -> {}",
-                         time::now().rfc822(),
-                         record.level(),
-                         record.target(),
-                         record.args());
+                println!(
+                    "[{}]({}) {} -> {}",
+                    time::now().rfc822(),
+                    record.level(),
+                    record.target(),
+                    record.args()
+                );
             } else {
-                println!("[{}]({}) {}",
-                         time::now().rfc822(),
-                         record.level(),
-                         record.args());
+                println!(
+                    "[{}]({}) {}",
+                    time::now().rfc822(),
+                    record.level(),
+                    record.args()
+                );
             }
         }
     }
@@ -47,12 +51,11 @@ impl log::Log for Logger {
 static LOGGER: Logger = Logger;
 
 fn main() {
-
     log::set_max_level(if cfg!(debug_assertions) {
-                           LevelFilter::Debug
-                       } else {
-                           LevelFilter::Info
-                       });
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    });
 
     log::set_logger(&LOGGER).unwrap();
 
@@ -82,14 +85,10 @@ fn main() {
 
     // Open a connection and add work for each config
     for config in configs {
-
         let mut disabled_plugins = None;
         if let Some(ref options) = config.options {
             if let Some(disabled) = options.get("disabled_plugins") {
-                disabled_plugins = Some(disabled
-                                            .split(',')
-                                            .map(|p| p.trim())
-                                            .collect::<Vec<_>>());
+                disabled_plugins = Some(disabled.split(',').map(|p| p.trim()).collect::<Vec<_>>());
             }
         }
 
@@ -109,7 +108,8 @@ fn main() {
             }
         }
 
-        bot.connect(&mut reactor, &config).expect("Failed to connect");
+        bot.connect(&mut reactor, &config)
+            .expect("Failed to connect");
     }
 
     // Run the bots until they throw an error - an error could be loss of connection

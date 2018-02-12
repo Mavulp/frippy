@@ -29,7 +29,6 @@ impl KeepNick {
                 Ok(_) => ExecutionStatus::Done,
                 Err(e) => ExecutionStatus::Err(e),
             }
-
         } else {
             ExecutionStatus::Done
         }
@@ -51,8 +50,10 @@ impl Plugin for KeepNick {
     }
 
     fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
-        client.send_notice(&command.source,
-                           "This Plugin does not implement any commands.")
+        client.send_notice(
+            &command.source,
+            "This Plugin does not implement any commands.",
+        )
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {

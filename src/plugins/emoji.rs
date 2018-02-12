@@ -14,7 +14,6 @@ struct EmojiHandle {
 
 impl fmt::Display for EmojiHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-
         let name = match unicode_names::name(self.symbol) {
             Some(sym) => sym.to_string().to_lowercase(),
             None => String::from("UNKNOWN"),
@@ -52,7 +51,6 @@ impl Emoji {
             count: 0,
         };
 
-
         for c in string.chars() {
             if !self.is_emoji(&c) {
                 continue;
@@ -60,7 +58,6 @@ impl Emoji {
 
             if current.symbol == c {
                 current.count += 1;
-
             } else {
                 if current.count > 0 {
                     emojis.push(current);
@@ -99,13 +96,12 @@ impl Emoji {
 impl Plugin for Emoji {
     fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::PRIVMSG(_, ref content) => {
-                match client.send_privmsg(message.response_target().unwrap(),
-                                          &self.emoji(content)) {
-                    Ok(_) => ExecutionStatus::Done,
-                    Err(e) => ExecutionStatus::Err(e),
-                }
-            }
+            Command::PRIVMSG(_, ref content) => match client
+                .send_privmsg(message.response_target().unwrap(), &self.emoji(content))
+            {
+                Ok(_) => ExecutionStatus::Done,
+                Err(e) => ExecutionStatus::Err(e),
+            },
             _ => ExecutionStatus::Done,
         }
     }
@@ -115,8 +111,10 @@ impl Plugin for Emoji {
     }
 
     fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
-        client.send_notice(&command.source,
-                           "This Plugin does not implement any commands.")
+        client.send_notice(
+            &command.source,
+            "This Plugin does not implement any commands.",
+        )
     }
 
     fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {

@@ -1,5 +1,5 @@
-#![cfg_attr(feature="clippy", feature(plugin))]
-#![cfg_attr(feature="clippy", plugin(clippy))]
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
 
 //! Frippy is an IRC bot that runs plugins on each message
 //! received.
@@ -30,11 +30,11 @@
 //! which might be of interest.
 
 #[macro_use]
-extern crate log;
+extern crate frippy_derive;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
-extern crate frippy_derive;
+extern crate log;
 
 extern crate irc;
 
@@ -70,7 +70,9 @@ impl Bot {
     /// let mut bot = Bot::new();
     /// ```
     pub fn new() -> Bot {
-        Bot { plugins: ThreadedPlugins::new() }
+        Bot {
+            plugins: ThreadedPlugins::new(),
+        }
     }
 
     /// Adds the [`Plugin`](plugin/trait.Plugin.html).
@@ -103,10 +105,13 @@ impl Bot {
         self.plugins.remove(name)
     }
 
-    /// This connects the `Bot` to IRC and creates a task on the [`IrcReactor`](../irc/client/reactor/struct.IrcReactor.html)
-    /// which returns an Ok if the connection was cleanly closed and an Err if the connection was lost.
+    /// This connects the `Bot` to IRC and creates a task on the
+    /// [`IrcReactor`](../irc/client/reactor/struct.IrcReactor.html)
+    /// which returns an Ok if the connection was cleanly closed and
+    /// an Err if the connection was lost.
     ///
-    /// You need to run the [`IrcReactor`](../irc/client/reactor/struct.IrcReactor.html), so that the `Bot`
+    /// You need to run the [`IrcReactor`](../irc/client/reactor/struct.IrcReactor.html),
+    /// so that the `Bot`
     /// can actually do its work.
     ///
     /// # Examples
@@ -151,11 +156,11 @@ impl Bot {
     }
 }
 
-fn process_msg(server: &IrcClient,
-               mut plugins: ThreadedPlugins,
-               message: Message)
-               -> Result<(), IrcError> {
-
+fn process_msg(
+    server: &IrcClient,
+    mut plugins: ThreadedPlugins,
+    message: Message,
+) -> Result<(), IrcError> {
     // Log any channels we join
     if let Command::JOIN(ref channel, _, _) = message.command {
         if message.source_nickname().unwrap() == server.current_nickname() {
@@ -185,7 +190,9 @@ struct ThreadedPlugins {
 
 impl ThreadedPlugins {
     pub fn new() -> ThreadedPlugins {
-        ThreadedPlugins { plugins: HashMap::new() }
+        ThreadedPlugins {
+            plugins: HashMap::new(),
+        }
     }
 
     pub fn add<T: Plugin + 'static>(&mut self, plugin: T) {
@@ -208,10 +215,11 @@ impl ThreadedPlugins {
                 ExecutionStatus::Done => (),
                 ExecutionStatus::Err(e) => error!("Error in {} - {}", name, e),
                 ExecutionStatus::RequiresThread => {
-
-                    debug!("Spawning thread to execute {} with {}",
-                           name,
-                           message.to_string().replace("\r\n", ""));
+                    debug!(
+                        "Spawning thread to execute {} with {}",
+                        name,
+                        message.to_string().replace("\r\n", "")
+                    );
 
                     // Clone everything before the move - the server uses an Arc internally too
                     let plugin = Arc::clone(&plugin);
@@ -229,11 +237,11 @@ impl ThreadedPlugins {
         }
     }
 
-    pub fn handle_command(&mut self,
-                          server: &IrcClient,
-                          mut command: PluginCommand)
-                          -> Result<(), IrcError> {
-
+    pub fn handle_command(
+        &mut self,
+        server: &IrcClient,
+        mut command: PluginCommand,
+    ) -> Result<(), IrcError> {
         if !command.tokens.iter().any(|s| !s.is_empty()) {
             let help = format!("Use \"{} help\" to get help", server.current_nickname());
             return server.send_notice(&command.source, &help);
@@ -241,7 +249,6 @@ impl ThreadedPlugins {
 
         // Check if the command is for this plugin
         if let Some(plugin) = self.plugins.get(&command.tokens[0].to_lowercase()) {
-
             // The first token contains the name of the plugin
             let name = command.tokens.remove(0);
 
@@ -251,18 +258,19 @@ impl ThreadedPlugins {
             let server = server.clone();
             let plugin = Arc::clone(plugin);
             spawn(move || {
-                      if let Err(e) = plugin.command(&server, command) {
-                          error!("Error in {} command - {}", name, e);
-                      };
-                  });
+                if let Err(e) = plugin.command(&server, command) {
+                    error!("Error in {} command - {}", name, e);
+                };
+            });
 
             Ok(())
-
         } else {
-            let help = format!("\"{} {}\" is not a command, \
-                                try \"{0} help\" instead.",
-                               server.current_nickname(),
-                               command.tokens[0]);
+            let help = format!(
+                "\"{} {}\" is not a command, \
+                 try \"{0} help\" instead.",
+                server.current_nickname(),
+                command.tokens[0]
+            );
 
             server.send_notice(&command.source, &help)
         }

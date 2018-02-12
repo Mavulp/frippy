@@ -30,7 +30,7 @@ pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
     fn evaluate(&self, server: &IrcClient, command: PluginCommand) -> Result<String, String>;
 }
 
-/// `PluginName` is required by [`Plugin`](trait.Plugin.html).  
+/// `PluginName` is required by [`Plugin`](trait.Plugin.html).
 ///
 /// To implement it simply add `#[derive(PluginName)]`
 /// above the definition of the struct.
@@ -64,25 +64,19 @@ impl PluginCommand {
     /// if it contains a [`PRIVMSG`](../../irc/proto/command/enum.Command.html#variant.PRIVMSG)
     /// that starts with the provided `nick`.
     pub fn from(nick: &str, message: &Message) -> Option<PluginCommand> {
-
         // Get the actual message out of PRIVMSG
         if let Command::PRIVMSG(_, ref content) = message.command {
-
             // Split content by spaces and filter empty tokens
             let mut tokens: Vec<String> = content.split(' ').map(ToOwned::to_owned).collect();
 
             // Commands start with our name
             if tokens[0].to_lowercase().starts_with(nick) {
-
                 // Remove the bot's name from the first token
                 tokens[0].drain(..nick.len());
 
                 // We assume that only ':' and ',' are used as suffixes on IRC
                 // If there are any other chars we assume that it is not ment for the bot
-                tokens[0] = tokens[0]
-                    .chars()
-                    .filter(|&c| !":,".contains(c))
-                    .collect();
+                tokens[0] = tokens[0].chars().filter(|&c| !":,".contains(c)).collect();
                 if !tokens[0].is_empty() {
                     return None;
                 }
@@ -91,10 +85,10 @@ impl PluginCommand {
                 tokens.remove(0);
 
                 Some(PluginCommand {
-                         source: message.source_nickname().unwrap().to_string(),
-                         target: message.response_target().unwrap().to_string(),
-                         tokens: tokens,
-                     })
+                    source: message.source_nickname().unwrap().to_string(),
+                    target: message.response_target().unwrap().to_string(),
+                    tokens: tokens,
+                })
             } else {
                 None
             }

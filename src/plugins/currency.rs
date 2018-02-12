@@ -34,7 +34,6 @@ macro_rules! try_option {
 
 impl<'a> ConvertionRequest<'a> {
     fn send(&self) -> Option<f64> {
-
         let response = Client::new()
             .get("https://api.fixer.io/latest")
             .form(&[("base", self.source)])
@@ -49,7 +48,6 @@ impl<'a> ConvertionRequest<'a> {
                 let convertion_rates: Result<Value, _> = serde_json::from_str(&body);
                 match convertion_rates {
                     Ok(convertion_rates) => {
-
                         let rates: &Value = try_option!(convertion_rates.get("rates"));
                         let target_rate: &Value =
                             try_option!(rates.get(self.target.to_uppercase()));
@@ -68,14 +66,15 @@ impl Currency {
         Currency {}
     }
 
-    fn eval_command<'a>(&self,
-                        tokens: &'a [String])
-                        -> Result<ConvertionRequest<'a>, ParseFloatError> {
+    fn eval_command<'a>(
+        &self,
+        tokens: &'a [String],
+    ) -> Result<ConvertionRequest<'a>, ParseFloatError> {
         Ok(ConvertionRequest {
-               value: tokens[0].parse()?,
-               source: &tokens[1],
-               target: &tokens[2],
-           })
+            value: tokens[0].parse()?,
+            source: &tokens[1],
+            target: &tokens[2],
+        })
     }
 
     fn convert(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<String, String> {
@@ -92,33 +91,41 @@ impl Currency {
 
         match request.send() {
             Some(response) => {
-                let response = format!("{} {} => {:.4} {}",
-                                       request.value,
-                                       request.source.to_lowercase(),
-                                       response / 1.00000000,
-                                       request.target.to_lowercase());
+                let response = format!(
+                    "{} {} => {:.4} {}",
+                    request.value,
+                    request.source.to_lowercase(),
+                    response / 1.00000000,
+                    request.target.to_lowercase()
+                );
 
                 Ok(response)
             }
-            None => Err(String::from("An error occured during the conversion of the given currency")),
+            None => Err(String::from(
+                "An error occured during the conversion of the given currency",
+            )),
         }
     }
 
     fn help(&self, client: &IrcClient) -> String {
-        format!("usage: {} currency value from_currency to_currency\r\n\
-                            example: {0} currency 1.5 eur usd\r\n\
-                            available currencies: AUD, BGN, BRL, CAD, \
-                            CHF, CNY, CZK, DKK, GBP, HKD, HRK, HUF, \
-                            IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \
-                            NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, \
-                            TRY, USD, ZAR",
-                           client.current_nickname())
+        format!(
+            "usage: {} currency value from_currency to_currency\r\n\
+             example: {0} currency 1.5 eur usd\r\n\
+             available currencies: AUD, BGN, BRL, CAD, \
+             CHF, CNY, CZK, DKK, GBP, HKD, HRK, HUF, \
+             IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \
+             NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, \
+             TRY, USD, ZAR",
+            client.current_nickname()
+        )
     }
 
     fn invalid_command(&self, client: &IrcClient) -> String {
-        format!("Incorrect Command. \
-                           Send \"{} currency help\" for help.",
-                   client.current_nickname())
+        format!(
+            "Incorrect Command. \
+             Send \"{} currency help\" for help.",
+            client.current_nickname()
+        )
     }
 }
 
@@ -132,7 +139,6 @@ impl Plugin for Currency {
     }
 
     fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), IrcError> {
-
         if command.tokens.is_empty() {
             return client.send_notice(&command.source, &self.invalid_command(client));
         }
@@ -142,11 +148,11 @@ impl Plugin for Currency {
             _ => match self.convert(client, &mut command) {
                 Ok(msg) => client.send_privmsg(&command.target, &msg),
                 Err(msg) => client.send_notice(&command.source, &msg),
-            }
+            },
         }
     }
 
-    fn evaluate(&self, client: &IrcClient, mut command: PluginCommand) -> Result<String, String>{
+    fn evaluate(&self, client: &IrcClient, mut command: PluginCommand) -> Result<String, String> {
         if command.tokens.is_empty() {
             return Err(self.invalid_command(client));
         }

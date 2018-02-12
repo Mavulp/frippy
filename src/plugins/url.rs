@@ -29,7 +29,7 @@ pub struct Url {
 impl Url {
     /// If a file is larger than `max_kib` KiB the download is stopped
     pub fn new(max_kib: usize) -> Url {
-        Url {max_kib: max_kib}
+        Url { max_kib: max_kib }
     }
 
     fn grep_url(&self, msg: &str) -> Option<String> {
@@ -44,10 +44,7 @@ impl Url {
     }
 
     fn download(&self, url: &str) -> Option<String> {
-        let response = Client::new()
-            .get(url)
-            .header(Connection::close())
-            .send();
+        let response = Client::new().get(url).header(Connection::close()).send();
 
         match response {
             Ok(mut response) => {
@@ -81,10 +78,12 @@ impl Url {
 
                     // Check if the file is too large to download
                     if written > self.max_kib * 1024 {
-                        debug!("Stopping download - File from {:?} is larger than {} KiB", url, self.max_kib);
+                        debug!(
+                            "Stopping download - File from {:?} is larger than {} KiB",
+                            url, self.max_kib
+                        );
                         return None;
                     }
-
                 }
                 Some(body) // once told me
             }
@@ -98,15 +97,11 @@ impl Url {
     fn url(&self, text: &str) -> Result<String, &str> {
         let url = match self.grep_url(text) {
             Some(url) => url,
-            None => {
-                return Err("No Url was found.")
-            }
+            None => return Err("No Url was found."),
         };
-
 
         match self.download(&url) {
             Some(body) => {
-
                 let doc = Document::from(body.as_ref());
                 if let Some(title) = doc.find(Name("title")).next() {
                     let title = title.children().next().unwrap();
@@ -115,12 +110,11 @@ impl Url {
                     debug!("Text: {:?}", title_text);
 
                     Ok(title_text)
-
                 } else {
                     Err("No title was found.")
                 }
             }
-            None => Err("Failed to download document.")
+            None => Err("Failed to download document."),
         }
     }
 }
@@ -139,19 +133,19 @@ impl Plugin for Url {
 
     fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), IrcError> {
         match message.command {
-            Command::PRIVMSG(_, ref content) => {
-                match self.url(content) {
-                    Ok(title) => client.send_privmsg(message.response_target().unwrap(), &title),
-                    Err(_) => Ok(()),
-                }
-            }
+            Command::PRIVMSG(_, ref content) => match self.url(content) {
+                Ok(title) => client.send_privmsg(message.response_target().unwrap(), &title),
+                Err(_) => Ok(()),
+            },
             _ => Ok(()),
         }
     }
 
     fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
-        client.send_notice(&command.source,
-                           "This Plugin does not implement any commands.")
+        client.send_notice(
+            &command.source,
+            "This Plugin does not implement any commands.",
+        )
     }
 
     fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {

@@ -17,7 +17,7 @@ macro_rules! try_lock {
 
 #[derive(PluginName, Default, Debug)]
 pub struct Tell {
-    tells: Mutex<HashMap<String, TellMessage>>,
+    tells: Mutex<HashMap<String, Vec<TellMessage>>>,
 }
 
 #[derive(Default, Debug)]
@@ -60,21 +60,25 @@ impl Tell {
             message: message,
         };
 
-        try_lock!(self.tells).insert(receiver.clone(), tell);
+        let mut tells = try_lock!(self.tells);
+        let tell_messages = tells.entry(receiver).or_insert(Vec::with_capacity(3));
+        (*tell_messages).push(tell);
 
         Ok("Got it!")
     }
 
     fn send_tell(&self, client: &IrcClient, receiver: &str) -> ExecutionStatus {
         let mut tells = try_lock!(self.tells);
-        if let Some(tell) = tells.get(receiver) {
-            if let Err(e) = client.send_notice(
-                receiver,
-                &format!("Tell from {}: {}", tell.sender, tell.message),
-            ) {
-                return ExecutionStatus::Err(e);
+        if let Some(tell_messages) = tells.get_mut(receiver) {
+            for tell in tell_messages {
+                if let Err(e) = client.send_notice(
+                    receiver,
+                    &format!("Tell from {}: {}", tell.sender, tell.message),
+                ) {
+                    return ExecutionStatus::Err(e);
+                }
+                debug!("Sent {:?} from {:?} to {:?}", tell.message, tell.sender, receiver);
             }
-            debug!("Sent {:?} from {:?} to {:?}", tell.message, tell.sender, receiver);
         }
         tells.remove(receiver);
         ExecutionStatus::Done

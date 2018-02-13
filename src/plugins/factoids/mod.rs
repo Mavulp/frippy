@@ -14,6 +14,9 @@ use plugin::*;
 pub mod database;
 use self::database::{Database, DbResponse};
 
+mod utils;
+use self::utils::download;
+
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
 #[derive(PluginName)]
@@ -35,6 +38,24 @@ impl<T: Database> Factoids<T> {
         Factoids { factoids: Mutex::new(db) }
     }
 
+    fn create_factoid(&self, name: &str, content: &str, author: &str) -> Result<&str, &str> {
+            let count = try_lock!(self.factoids).count(&name)?;
+            let tm = time::now().to_timespec();
+
+            let factoid = database::NewFactoid {
+                name: name,
+                idx: count,
+                content: content,
+                author: author,
+                created: NaiveDateTime::from_timestamp(tm.sec, tm.nsec as u32),
+            };
+
+            match try_lock!(self.factoids).insert(&factoid) {
+                DbResponse::Success => Ok("Successfully added"),
+                DbResponse::Failed(e) => Err(e),
+            }
+    }
+
     fn add(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
         if command.tokens.len() < 2 {
             return self.invalid_command(server, command);
@@ -42,24 +63,27 @@ impl<T: Database> Factoids<T> {
 
         let name = command.tokens.remove(0);
         let content = command.tokens.join(" ");
-        let count = match try_lock!(self.factoids).count(&name) {
-            Ok(c) => c,
-            Err(e) => return server.send_notice(&command.source, e),
-        };
 
-        let tm = time::now().to_timespec();
+        match self.create_factoid(&name, &content, &command.source) {
+            Ok(v) => server.send_notice(&command.source, v),
+            Err(e) => server.send_notice(&command.source, e),
+        }
+    }
 
-        let factoid = database::NewFactoid {
-            name: &name,
-            idx: count,
-            content: &content,
-            author: &command.source,
-            created: NaiveDateTime::from_timestamp(tm.sec, tm.nsec as u32),
-        };
+    fn from_url(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
+        if command.tokens.len() < 2 {
+            return self.invalid_command(server, command);
+        }
 
-        match try_lock!(self.factoids).insert(&factoid) {
-            DbResponse::Success => server.send_notice(&command.source, "Successfully added"),
-            DbResponse::Failed(e) => server.send_notice(&command.source, &e),
+        let name = command.tokens.remove(0);
+        let url = &command.tokens[0];
+        if let Some(content) = ::utils::download(1024, url) {
+            match self.create_factoid(&name, &content, &command.source) {
+                Ok(v) => server.send_notice(&command.source, v),
+                Err(e) => server.send_notice(&command.source, e),
+            }
+        } else {
+            server.send_notice(&command.source, "Failed to download.")
         }
     }
 
@@ -110,7 +134,10 @@ impl<T: Database> Factoids<T> {
 
         let factoid = match try_lock!(self.factoids).get(name, idx) {
             Some(v) => v,
-            None => return server.send_notice(&command.source, &format!("{}~{} does not exist", name, idx)),
+            None => {
+                return server.send_notice(&command.source,
+                                          &format!("{}~{} does not exist", name, idx))
+            }
         };
 
         server.send_privmsg(&command.target,
@@ -194,7 +221,7 @@ impl<T: Database> Factoids<T> {
                 } else {
                     match self.run_lua(&name, &factoid, &command) {
                         Ok(v) => v,
-                        Err(e) => format!("{}", e),
+                        Err(e) => format!("\"{}\"", e),
                     }
                 }
             } else {
@@ -222,6 +249,7 @@ impl<T: Database> Factoids<T> {
         let globals = lua.globals();
 
         globals.set("factoid", code)?;
+        globals.set("download", lua.create_function(download))?;
         globals.set("args", args)?;
         globals.set("input", command.tokens.join(" "))?;
         globals.set("user", command.source.clone())?;
@@ -274,6 +302,7 @@ impl<T: Database> Plugin for Factoids<T> {
         let sub_command = command.tokens.remove(0);
         match sub_command.as_ref() {
             "add" => self.add(server, &mut command),
+            "fromurl" => self.from_url(server, &mut command),
             "remove" => self.remove(server, &mut command),
             "get" => self.get(server, &command),
             "info" => self.info(server, &command),

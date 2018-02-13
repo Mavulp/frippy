@@ -106,7 +106,7 @@ impl Database for MysqlConnection {
                   .execute(self) {
             Ok(_) => DbResponse::Success,
             Err(e) => {
-                error!("DB Insertion Error: {:?}", e);
+                error!("DB Insertion Error: \"{}\"", e);
                 DbResponse::Failed("Failed to add factoid")
             }
         }
@@ -131,7 +131,7 @@ impl Database for MysqlConnection {
                 }
             }
             Err(e) => {
-                error!("DB Deletion Error: {:?}", e);
+                error!("DB Deletion Error: \"{}\"", e);
                 DbResponse::Failed("Failed to delete factoid")
             }
         }

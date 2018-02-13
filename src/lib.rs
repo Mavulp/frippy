@@ -51,6 +51,7 @@ extern crate time;
 
 pub mod plugin;
 pub mod plugins;
+pub mod utils;
 
 use std::collections::HashMap;
 use std::fmt;

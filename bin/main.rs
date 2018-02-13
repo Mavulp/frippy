@@ -144,7 +144,7 @@ fn main() {
         if let Some(disabled_plugins) = disabled_plugins {
             for name in disabled_plugins {
                 if let None = bot.remove_plugin(name) {
-                    error!("{:?} was not found - could not disable", name);
+                    error!("\"{}\" was not found - could not disable", name);
                 }
             }
         }

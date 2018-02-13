@@ -201,7 +201,7 @@ impl<T: Database> Factoids<T> {
                 factoid
             };
 
-            server.send_privmsg(&command.target, &value)
+            server.send_privmsg(&command.target, &value.replace("\n", "|").replace("\r", ""))
         }
     }
 
@@ -221,7 +221,7 @@ impl<T: Database> Factoids<T> {
         let lua = Lua::new();
         let globals = lua.globals();
 
-        globals.set("factoid", lua.load(code, Some(name))?)?;
+        globals.set("factoid", code)?;
         globals.set("args", args)?;
         globals.set("input", command.tokens.join(" "))?;
         globals.set("user", command.source.clone())?;
@@ -231,7 +231,7 @@ impl<T: Database> Factoids<T> {
         lua.exec::<()>(LUA_SANDBOX, Some(name))?;
         let output: Vec<String> = globals.get::<_, Vec<String>>("output")?;
 
-        Ok(output.join("|").replace("\n", "|"))
+        Ok(output.join("|"))
     }
 
     fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {

@@ -77,7 +77,10 @@ impl Tell {
                 ) {
                     return ExecutionStatus::Err(e);
                 }
-                debug!("Sent {:?} from {:?} to {:?}", tell.message, tell.sender, receiver);
+                debug!(
+                    "Sent {:?} from {:?} to {:?}",
+                    tell.message, tell.sender, receiver
+                );
             }
         }
         tells.remove(receiver);

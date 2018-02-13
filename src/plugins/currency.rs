@@ -23,15 +23,6 @@ struct ConvertionRequest<'a> {
     target: &'a str,
 }
 
-macro_rules! try_option {
-    ($e:expr) => {
-        match $e {
-            Some(v) => v,
-            None    => { return None; }
-        }
-    }
-}
-
 impl<'a> ConvertionRequest<'a> {
     fn send(&self) -> Option<f64> {
         let response = Client::new()
@@ -43,15 +34,14 @@ impl<'a> ConvertionRequest<'a> {
         match response {
             Ok(mut response) => {
                 let mut body = String::new();
-                try_option!(response.read_to_string(&mut body).ok());
+                response.read_to_string(&mut body).ok()?;
 
                 let convertion_rates: Result<Value, _> = serde_json::from_str(&body);
                 match convertion_rates {
                     Ok(convertion_rates) => {
-                        let rates: &Value = try_option!(convertion_rates.get("rates"));
-                        let target_rate: &Value =
-                            try_option!(rates.get(self.target.to_uppercase()));
-                        Some(self.value * try_option!(target_rate.as_f64()))
+                        let rates: &Value = convertion_rates.get("rates")?;
+                        let target_rate: &Value = rates.get(self.target.to_uppercase())?;
+                        Some(self.value * target_rate.as_f64()?)
                     }
                     Err(_) => None,
                 }

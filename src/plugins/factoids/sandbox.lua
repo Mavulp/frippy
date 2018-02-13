@@ -8,7 +8,7 @@ function send(text)
 end
 
 function sendln(text)
-  sendtoirc(text)
+  send(text)
   table.insert(output, "")
 end
 

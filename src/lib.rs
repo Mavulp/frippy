@@ -147,12 +147,12 @@ impl Bot {
             match IrcServer::new_future(reactor.handle(), config).and_then(|f| {reactor.run(f)}) {
                 Ok(v) => v,
                 Err(e) => {
-                    error!("Failed to connect: {}", e);
+                    error!("Failed to connect to IRC server: {}", e);
                     return;
                 }
             };
 
-        info!("Connected to server");
+        info!("Connected to IRC server");
 
         match server.identify() {
             Ok(_) => info!("Identified"),

@@ -119,7 +119,10 @@ fn main() {
                 match diesel::mysql::MysqlConnection::establish(url) {
                     Ok(conn) => {
                         match embedded_migrations::run(&conn) {
-                            Ok(_) => bot.add_plugin(plugins::Factoids::new(conn)),
+                            Ok(_) => {
+                                bot.add_plugin(plugins::Factoids::new(conn));
+                                info!("Connected to MySQL server")
+                            }
                             Err(e) => {
                                 bot.add_plugin(plugins::Factoids::new(HashMap::new()));
                                 error!("Failed to run migrations: {}", e);

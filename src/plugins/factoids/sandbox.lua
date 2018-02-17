@@ -1,5 +1,6 @@
 function send(text)
-  len = #output
+  local text = tostring(text)
+  local len = #output
   if len < 1 then
     output = { text }
   else
@@ -25,4 +26,9 @@ local env = { print = send,
               tostring = tostring,
               math = math }
 
-load(factoid, nil, nil, env)()
+local f, e = load(factoid, nil, nil, env)
+if f then
+  f()
+else
+  error(e)
+end

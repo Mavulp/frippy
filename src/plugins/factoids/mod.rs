@@ -140,8 +140,10 @@ impl<T: Database> Factoids<T> {
             }
         };
 
+        let message = factoid.content.replace("\n", "|").replace("\r", "");
+
         server.send_privmsg(&command.target,
-                            &format!("{}: {}", factoid.name, factoid.content))
+                            &format!("{}: {}", factoid.name, message))
     }
 
     fn info(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
@@ -156,7 +158,7 @@ impl<T: Database> Factoids<T> {
                 };
 
                 match count {
-                    0 => server.send_privmsg(&command.target, &format!("{} does not exist", name)),
+                    0 => server.send_notice(&command.source, &format!("{} does not exist", name)),
                     1 => {
                         server.send_privmsg(&command.target,
                                             &format!("There is 1 version of {}", name))

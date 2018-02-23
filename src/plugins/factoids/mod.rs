@@ -15,7 +15,7 @@ pub mod database;
 use self::database::{Database, DbResponse};
 
 mod utils;
-use self::utils::download;
+use self::utils::*;
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
@@ -247,16 +247,17 @@ impl<T: Database> Factoids<T> {
             .map(ToOwned::to_owned)
             .collect::<Vec<String>>();
 
-        let lua = Lua::new();
+        let lua = unsafe { Lua::new_with_debug() };
         let globals = lua.globals();
 
         globals.set("factoid", code)?;
-        globals.set("download", lua.create_function(download))?;
+        globals.set("download", lua.create_function(download)?)?;
+        globals.set("sleep", lua.create_function(sleep)?)?;
         globals.set("args", args)?;
         globals.set("input", command.tokens.join(" "))?;
         globals.set("user", command.source.clone())?;
         globals.set("channel", command.target.clone())?;
-        globals.set("output", lua.create_table())?;
+        globals.set("output", lua.create_table()?)?;
 
         lua.exec::<()>(LUA_SANDBOX, Some(name))?;
         let output: Vec<String> = globals.get::<_, Vec<String>>("output")?;

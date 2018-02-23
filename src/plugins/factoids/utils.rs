@@ -1,5 +1,8 @@
 extern crate reqwest;
 
+use std::thread;
+use std::time::Duration;
+
 use utils;
 use super::rlua::prelude::*;
 
@@ -10,4 +13,9 @@ pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
         Some(v) => Ok(v),
         None => Err(RuntimeError(format!("Failed to download {}", url))),
     }
+}
+
+pub fn sleep(_: &Lua, dur: u64) -> Result<(), LuaError> {
+    thread::sleep(Duration::from_millis(dur));
+    Ok(())
 }

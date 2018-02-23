@@ -9,33 +9,26 @@ keywords = ["irc", "bot"]
 categories = ["network-programming"]
 description = "An IRC Bot"
 
-[lib]
-name = "frippy"
-path = "src/lib.rs"
-
 [[bin]]
 name = "frippy"
-path = "bin/main.rs"
 doc = false
 
 [features]
 mysql = ["diesel", "diesel_infer_schema", "diesel_migrations", "dotenv"]
 
 [dependencies]
-irc             = "0.12.5"
-tokio-core      = "0.1.10"
-futures         = "0.1.16"
-log             = "0.3.8"
-time            = "0.1"
+irc             = "0.13.2"
+log             = "0.4.1"
+time            = "0.1.39"
 rlua            = "0.12.2"
-reqwest         = "0.8.0"
+reqwest         = "0.8.4"
 select          = "0.4.2"
-regex           = "0.2.2"
+regex           = "0.2.6"
 lazy_static     = "0.2.9"
-serde           = "1.0.15"
-serde_json      = "1.0.3"
+serde           = "1.0.27"
+serde_json      = "1.0.9"
 chrono          = "0.4.0"
-glob            = "0.2"
+glob            = "0.2.11"
 
 frippy_derive = { path = "frippy_derive" }
 

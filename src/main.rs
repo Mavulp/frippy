@@ -1,8 +1,10 @@
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
+
 extern crate frippy;
-extern crate time;
-extern crate tokio_core;
 extern crate glob;
-extern crate futures;
+extern crate irc;
+extern crate time;
 
 #[cfg(feature = "mysql")]
 #[macro_use]
@@ -14,11 +16,9 @@ extern crate diesel;
 extern crate log;
 
 use std::collections::HashMap;
+use log::{Level, LevelFilter, Metadata, Record};
 
-use log::{LogRecord, LogLevel, LogLevelFilter, LogMetadata};
-
-use tokio_core::reactor::Core;
-use futures::future;
+use irc::client::reactor::IrcReactor;
 use glob::glob;
 
 use frippy::plugins;
@@ -30,40 +30,44 @@ embed_migrations!();
 struct Logger;
 
 impl log::Log for Logger {
-    fn enabled(&self, metadata: &LogMetadata) -> bool {
+    fn enabled(&self, metadata: &Metadata) -> bool {
         metadata.target().contains("frippy")
     }
 
-    fn log(&self, record: &LogRecord) {
+    fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
-            if record.metadata().level() >= LogLevel::Debug {
-                println!("[{}]({}) {} -> {}",
-                         time::now().rfc822(),
-                         record.level(),
-                         record.target(),
-                         record.args());
+            if record.metadata().level() >= Level::Debug {
+                println!(
+                    "[{}]({}) {} -> {}",
+                    time::now().rfc822(),
+                    record.level(),
+                    record.target(),
+                    record.args()
+                );
             } else {
-                println!("[{}]({}) {}",
-                         time::now().rfc822(),
-                         record.level(),
-                         record.args());
+                println!(
+                    "[{}]({}) {}",
+                    time::now().rfc822(),
+                    record.level(),
+                    record.args()
+                );
             }
         }
     }
+
+    fn flush(&self) {}
 }
 
-fn main() {
-    let log_level = if cfg!(debug_assertions) {
-        LogLevelFilter::Debug
-    } else {
-        LogLevelFilter::Info
-    };
+static LOGGER: Logger = Logger;
 
-    log::set_logger(|max_log_level| {
-                        max_log_level.set(log_level);
-                        Box::new(Logger)
-                    })
-            .unwrap();
+fn main() {
+    log::set_max_level(if cfg!(debug_assertions) {
+        LevelFilter::Debug
+    } else {
+        LevelFilter::Info
+    });
+
+    log::set_logger(&LOGGER).unwrap();
 
     // Load all toml files in the configs directory
     let mut configs = Vec::new();
@@ -87,14 +91,13 @@ fn main() {
     }
 
     // Create an event loop to run the connections on.
-    let mut reactor = Core::new().unwrap();
+    let mut reactor = IrcReactor::new().unwrap();
 
     // Open a connection and add work for each config
     for config in configs {
-
         let mut disabled_plugins = None;
         let mut mysql_url = None;
-        if let &Some(ref options) = &config.options {
+        if let Some(ref options) = config.options {
             if let Some(disabled) = options.get("disabled_plugins") {
                 disabled_plugins = Some(disabled
                                             .split(",")
@@ -111,6 +114,8 @@ fn main() {
         bot.add_plugin(plugins::Emoji::new());
         bot.add_plugin(plugins::Currency::new());
         bot.add_plugin(plugins::KeepNick::new());
+        bot.add_plugin(plugins::Tell::new());
+
         #[cfg(feature = "mysql")]
         {
             if let Some(url) = mysql_url {
@@ -146,15 +151,16 @@ fn main() {
 
         if let Some(disabled_plugins) = disabled_plugins {
             for name in disabled_plugins {
-                if let None = bot.remove_plugin(name) {
+                if bot.remove_plugin(name).is_none() {
                     error!("\"{}\" was not found - could not disable", name);
                 }
             }
         }
 
-        bot.connect(&mut reactor, &config);
+        bot.connect(&mut reactor, &config)
+            .expect("Failed to connect");
     }
 
-    // Run the main loop forever
-    reactor.run(future::empty::<(), ()>()).unwrap();
+    // Run the bots until they throw an error - an error could be loss of connection
+    reactor.run().unwrap();
 }

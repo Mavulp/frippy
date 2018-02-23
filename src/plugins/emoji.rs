@@ -3,7 +3,7 @@ extern crate unicode_names;
 use std::fmt;
 
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
+use irc::error::IrcError;
 
 use plugin::*;
 
@@ -14,7 +14,6 @@ struct EmojiHandle {
 
 impl fmt::Display for EmojiHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-
         let name = match unicode_names::name(self.symbol) {
             Some(sym) => sym.to_string().to_lowercase(),
             None => String::from("UNKNOWN"),
@@ -36,13 +35,12 @@ impl Emoji {
         Emoji {}
     }
 
-    fn emoji(&self, server: &IrcServer, content: &str, target: &str) -> Result<(), IrcError> {
-        let names = self.return_emojis(content)
+    fn emoji(&self, content: &str) -> String {
+        self.return_emojis(content)
             .iter()
             .map(|e| e.to_string())
-            .collect::<Vec<String>>();
-
-        server.send_privmsg(target, &names.join(", "))
+            .collect::<Vec<String>>()
+            .join(", ")
     }
 
     fn return_emojis(&self, string: &str) -> Vec<EmojiHandle> {
@@ -53,7 +51,6 @@ impl Emoji {
             count: 0,
         };
 
-
         for c in string.chars() {
             if !self.is_emoji(&c) {
                 continue;
@@ -61,7 +58,6 @@ impl Emoji {
 
             if current.symbol == c {
                 current.count += 1;
-
             } else {
                 if current.count > 0 {
                     emojis.push(current);
@@ -98,25 +94,36 @@ impl Emoji {
 }
 
 impl Plugin for Emoji {
-    fn is_allowed(&self, _: &IrcServer, message: &Message) -> bool {
+    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::PRIVMSG(_, _) => true,
-            _ => false,
+            Command::PRIVMSG(_, ref content) => match client
+                .send_privmsg(message.response_target().unwrap(), &self.emoji(content))
+            {
+                Ok(_) => ExecutionStatus::Done,
+                Err(e) => ExecutionStatus::Err(e),
+            },
+            _ => ExecutionStatus::Done,
         }
     }
 
-    fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
-        match message.command {
-            Command::PRIVMSG(_, ref content) => {
-                self.emoji(server, content, message.response_target().unwrap())
-            }
-            _ => Ok(()),
-        }
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
+        panic!("Emoji should not use threading")
     }
 
-    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
-        server.send_notice(&command.source,
-                           "This Plugin does not implement any commands.")
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
+        client.send_notice(
+            &command.source,
+            "This Plugin does not implement any commands.",
+        )
+    }
+
+    fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
+        let emojis = self.emoji(&command.tokens[0]);
+        if emojis.is_empty() {
+            Ok(emojis)
+        } else {
+            Err(String::from("No emojis were found."))
+        }
     }
 }
 

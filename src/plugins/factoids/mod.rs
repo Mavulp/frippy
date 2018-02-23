@@ -5,7 +5,7 @@ use std::str::FromStr;
 use std::sync::Mutex;
 use self::rlua::prelude::*;
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
+use irc::error::IrcError;
 
 use time;
 use chrono::NaiveDateTime;
@@ -56,67 +56,67 @@ impl<T: Database> Factoids<T> {
             }
     }
 
-    fn add(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
+    fn add(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<(), IrcError> {
         if command.tokens.len() < 2 {
-            return self.invalid_command(server, command);
+            return self.invalid_command(client, command);
         }
 
         let name = command.tokens.remove(0);
         let content = command.tokens.join(" ");
 
         match self.create_factoid(&name, &content, &command.source) {
-            Ok(v) => server.send_notice(&command.source, v),
-            Err(e) => server.send_notice(&command.source, e),
+            Ok(v) => client.send_notice(&command.source, v),
+            Err(e) => client.send_notice(&command.source, e),
         }
     }
 
-    fn from_url(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
+    fn from_url(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<(), IrcError> {
         if command.tokens.len() < 2 {
-            return self.invalid_command(server, command);
+            return self.invalid_command(client, command);
         }
 
         let name = command.tokens.remove(0);
         let url = &command.tokens[0];
         if let Some(content) = ::utils::download(1024, url) {
             match self.create_factoid(&name, &content, &command.source) {
-                Ok(v) => server.send_notice(&command.source, v),
-                Err(e) => server.send_notice(&command.source, e),
+                Ok(v) => client.send_notice(&command.source, v),
+                Err(e) => client.send_notice(&command.source, e),
             }
         } else {
-            server.send_notice(&command.source, "Failed to download.")
+            client.send_notice(&command.source, "Failed to download.")
         }
     }
 
-    fn remove(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
+    fn remove(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<(), IrcError> {
         if command.tokens.len() < 1 {
-            return self.invalid_command(server, command);
+            return self.invalid_command(client, command);
         }
 
         let name = command.tokens.remove(0);
         let count = match try_lock!(self.factoids).count(&name) {
             Ok(c) => c,
-            Err(e) => return server.send_notice(&command.source, e),
+            Err(e) => return client.send_notice(&command.source, e),
         };
 
         match try_lock!(self.factoids).delete(&name, count - 1) {
-            DbResponse::Success => server.send_notice(&command.source, "Successfully removed"),
-            DbResponse::Failed(e) => server.send_notice(&command.source, &e),
+            DbResponse::Success => client.send_notice(&command.source, "Successfully removed"),
+            DbResponse::Failed(e) => client.send_notice(&command.source, &e),
         }
     }
 
-    fn get(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
+    fn get(&self, client: &IrcClient, command: &PluginCommand) -> Result<(), IrcError> {
 
         let (name, idx) = match command.tokens.len() {
-            0 => return self.invalid_command(server, command),
+            0 => return self.invalid_command(client, command),
             1 => {
                 let name = &command.tokens[0];
                 let count = match try_lock!(self.factoids).count(name) {
                     Ok(c) => c,
-                    Err(e) => return server.send_notice(&command.source, e),
+                    Err(e) => return client.send_notice(&command.source, e),
                 };
 
                 if count < 1 {
-                    return server.send_notice(&command.source, &format!("{} does not exist", name));
+                    return client.send_notice(&command.source, &format!("{} does not exist", name));
                 }
 
                 (name, count - 1)
@@ -125,7 +125,7 @@ impl<T: Database> Factoids<T> {
                 let name = &command.tokens[0];
                 let idx = match i32::from_str(&command.tokens[1]) {
                     Ok(i) => i,
-                    Err(_) => return server.send_notice(&command.source, "Invalid index"),
+                    Err(_) => return client.send_notice(&command.source, "Invalid index"),
                 };
 
                 (name, idx)
@@ -135,36 +135,36 @@ impl<T: Database> Factoids<T> {
         let factoid = match try_lock!(self.factoids).get(name, idx) {
             Some(v) => v,
             None => {
-                return server.send_notice(&command.source,
+                return client.send_notice(&command.source,
                                           &format!("{}~{} does not exist", name, idx))
             }
         };
 
         let message = factoid.content.replace("\n", "|").replace("\r", "");
 
-        server.send_privmsg(&command.target,
+        client.send_privmsg(&command.target,
                             &format!("{}: {}", factoid.name, message))
     }
 
-    fn info(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
+    fn info(&self, client: &IrcClient, command: &PluginCommand) -> Result<(), IrcError> {
 
         match command.tokens.len() {
-            0 => self.invalid_command(server, command),
+            0 => self.invalid_command(client, command),
             1 => {
                 let name = &command.tokens[0];
                 let count = match try_lock!(self.factoids).count(name) {
                     Ok(c) => c,
-                    Err(e) => return server.send_notice(&command.source, e),
+                    Err(e) => return client.send_notice(&command.source, e),
                 };
 
                 match count {
-                    0 => server.send_notice(&command.source, &format!("{} does not exist", name)),
+                    0 => client.send_notice(&command.source, &format!("{} does not exist", name)),
                     1 => {
-                        server.send_privmsg(&command.target,
+                        client.send_privmsg(&command.target,
                                             &format!("There is 1 version of {}", name))
                     }
                     _ => {
-                        server.send_privmsg(&command.target,
+                        client.send_privmsg(&command.target,
                                             &format!("There are {} versions of {}", count, name))
                     }
                 }
@@ -173,18 +173,18 @@ impl<T: Database> Factoids<T> {
                 let name = &command.tokens[0];
                 let idx = match i32::from_str(&command.tokens[1]) {
                     Ok(i) => i,
-                    Err(_) => return server.send_notice(&command.source, "Invalid index"),
+                    Err(_) => return client.send_notice(&command.source, "Invalid index"),
                 };
 
                 let factoid = match try_lock!(self.factoids).get(name, idx) {
                     Some(v) => v,
                     None => {
-                        return server.send_notice(&command.source,
+                        return client.send_notice(&command.source,
                                                   &format!("{}~{} does not exist", name, idx))
                     }
                 };
 
-                server.send_privmsg(&command.target,
+                client.send_privmsg(&command.target,
                                     &format!("{}: Added by {} at {} UTC",
                                              name,
                                              factoid.author,
@@ -195,23 +195,23 @@ impl<T: Database> Factoids<T> {
     }
 
     fn exec(&self,
-            server: &IrcServer,
+            client: &IrcClient,
             mut command: PluginCommand,
             error: bool)
             -> Result<(), IrcError> {
         if command.tokens.len() < 1 {
-            self.invalid_command(server, &command)
+            self.invalid_command(client, &command)
 
         } else {
             let name = command.tokens.remove(0);
             let count = match try_lock!(self.factoids).count(&name) {
                 Ok(c) => c,
-                Err(e) => return server.send_notice(&command.source, e),
+                Err(e) => return client.send_notice(&command.source, e),
             };
 
             let factoid = match try_lock!(self.factoids).get(&name, count - 1) {
                 Some(v) => v.content,
-                None if error => return self.invalid_command(server, &command),
+                None if error => return self.invalid_command(client, &command),
                 None => return Ok(()),
             };
 
@@ -230,7 +230,7 @@ impl<T: Database> Factoids<T> {
                 factoid
             };
 
-            server.send_privmsg(&command.target, &value.replace("\n", "|").replace("\r", ""))
+            client.send_privmsg(&command.target, &value.replace("\n", "|").replace("\r", ""))
         }
     }
 
@@ -265,20 +265,24 @@ impl<T: Database> Factoids<T> {
         Ok(output.join("|"))
     }
 
-    fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
-        server.send_notice(&command.source, "Invalid Command")
+    fn invalid_command(&self, client: &IrcClient, command: &PluginCommand) -> Result<(), IrcError> {
+        client.send_notice(&command.source, "Invalid Command")
     }
 }
 
 impl<T: Database> Plugin for Factoids<T> {
-    fn is_allowed(&self, _: &IrcServer, message: &Message) -> bool {
+    fn execute(&self, _: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::PRIVMSG(_, ref content) => content.starts_with('!'),
-            _ => false,
+            Command::PRIVMSG(_, ref content) => if content.starts_with('!') {
+                ExecutionStatus::RequiresThread
+            } else {
+                ExecutionStatus::Done
+            },
+            _ => ExecutionStatus::Done,
         }
     }
 
-    fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
+    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), IrcError> {
         if let Command::PRIVMSG(_, mut content) = message.command.clone() {
             content.remove(0);
 
@@ -290,28 +294,32 @@ impl<T: Database> Plugin for Factoids<T> {
                 tokens: t,
             };
 
-            self.exec(server, c, false)
+            self.exec(client, c, false)
 
         } else {
             Ok(())
         }
     }
 
-    fn command(&self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), IrcError> {
         if command.tokens.is_empty() {
-            return self.invalid_command(server, &command);
+            return self.invalid_command(client, &command);
         }
 
         let sub_command = command.tokens.remove(0);
         match sub_command.as_ref() {
-            "add" => self.add(server, &mut command),
-            "fromurl" => self.from_url(server, &mut command),
-            "remove" => self.remove(server, &mut command),
-            "get" => self.get(server, &command),
-            "info" => self.info(server, &command),
-            "exec" => self.exec(server, command, true),
-            _ => self.invalid_command(server, &command),
+            "add" => self.add(client, &mut command),
+            "fromurl" => self.from_url(client, &mut command),
+            "remove" => self.remove(client, &mut command),
+            "get" => self.get(client, &command),
+            "info" => self.info(client, &command),
+            "exec" => self.exec(client, command, true),
+            _ => self.invalid_command(client, &command),
         }
+    }
+
+    fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
+        Err(String::from("Evaluation of commands is not implemented for Factoids at this time"))
     }
 }
 

@@ -2,7 +2,7 @@ extern crate regex;
 extern crate select;
 
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
+use irc::error::IrcError;
 
 use self::regex::Regex;
 
@@ -24,7 +24,7 @@ pub struct Url {
 impl Url {
     /// If a file is larger than `max_kib` KiB the download is stopped
     pub fn new(max_kib: usize) -> Url {
-        Url {max_kib: max_kib}
+        Url { max_kib: max_kib }
     }
 
     fn grep_url(&self, msg: &str) -> Option<String> {
@@ -38,56 +38,63 @@ impl Url {
         }
     }
 
-    fn url(&self, server: &IrcServer, message: &str, target: &str) -> Result<(), IrcError> {
-        let url = match self.grep_url(message) {
+    fn url(&self, text: &str) -> Result<String, &str> {
+        let url = match self.grep_url(text) {
             Some(url) => url,
-            None => {
-                return Ok(());
-            }
+            None => return Err("No Url was found."),
         };
 
 
         match utils::download(self.max_kib, &url) {
             Some(body) => {
-
                 let doc = Document::from(body.as_ref());
                 if let Some(title) = doc.find(Name("title")).next() {
-                    let text = title.children().next().unwrap();
-                    let message = text.as_text().unwrap().trim().replace("\n", "|");
-                    debug!("Title: {:?}", text);
-                    debug!("Message: {:?}", message);
+                    let title = title.children().next().unwrap();
+                    let title_text = title.as_text().unwrap().trim().replace("\n", "|");
+                    debug!("Title: {:?}", title);
+                    debug!("Text: {:?}", title_text);
 
-                    server.send_privmsg(target, &message)
-
+                    Ok(title_text)
                 } else {
-                    Ok(())
+                    Err("No title was found.")
                 }
             }
-            None => Ok(()),
+            None => Err("Failed to download document."),
         }
     }
 }
 
 impl Plugin for Url {
-    fn is_allowed(&self, _: &IrcServer, message: &Message) -> bool {
+    fn execute(&self, _: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::PRIVMSG(_, ref msg) => RE.is_match(msg),
-            _ => false,
+            Command::PRIVMSG(_, ref msg) => if RE.is_match(msg) {
+                ExecutionStatus::RequiresThread
+            } else {
+                ExecutionStatus::Done
+            },
+            _ => ExecutionStatus::Done,
         }
     }
 
-    fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError> {
+    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), IrcError> {
         match message.command {
-            Command::PRIVMSG(_, ref content) => {
-                self.url(server, content, message.response_target().unwrap())
-            }
+            Command::PRIVMSG(_, ref content) => match self.url(content) {
+                Ok(title) => client.send_privmsg(message.response_target().unwrap(), &title),
+                Err(_) => Ok(()),
+            },
             _ => Ok(()),
         }
     }
 
-    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
-        server.send_notice(&command.source,
-                           "This Plugin does not implement any commands.")
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
+        client.send_notice(
+            &command.source,
+            "This Plugin does not implement any commands.",
+        )
+    }
+
+    fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
+        self.url(&command.tokens[0]).map_err(String::from)
     }
 }
 

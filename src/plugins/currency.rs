@@ -6,7 +6,7 @@ use std::io::Read;
 use std::num::ParseFloatError;
 
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
+use irc::error::IrcError;
 
 use self::reqwest::Client;
 use self::reqwest::header::Connection;
@@ -23,18 +23,8 @@ struct ConvertionRequest<'a> {
     target: &'a str,
 }
 
-macro_rules! try_option {
-    ($e:expr) => {
-        match $e {
-            Some(v) => v,
-            None    => { return None; }
-        }
-    }
-}
-
 impl<'a> ConvertionRequest<'a> {
     fn send(&self) -> Option<f64> {
-
         let response = Client::new()
             .get("https://api.fixer.io/latest")
             .form(&[("base", self.source)])
@@ -44,16 +34,14 @@ impl<'a> ConvertionRequest<'a> {
         match response {
             Ok(mut response) => {
                 let mut body = String::new();
-                try_option!(response.read_to_string(&mut body).ok());
+                response.read_to_string(&mut body).ok()?;
 
                 let convertion_rates: Result<Value, _> = serde_json::from_str(&body);
                 match convertion_rates {
                     Ok(convertion_rates) => {
-
-                        let rates: &Value = try_option!(convertion_rates.get("rates"));
-                        let target_rate: &Value =
-                            try_option!(rates.get(self.target.to_uppercase()));
-                        Some(self.value * try_option!(target_rate.as_f64()))
+                        let rates: &Value = convertion_rates.get("rates")?;
+                        let target_rate: &Value = rates.get(self.target.to_uppercase())?;
+                        Some(self.value * target_rate.as_f64()?)
                     }
                     Err(_) => None,
                 }
@@ -68,7 +56,10 @@ impl Currency {
         Currency {}
     }
 
-    fn eval_command<'a>(&self, tokens: &'a [String]) -> Result<ConvertionRequest<'a>, ParseFloatError> {
+    fn eval_command<'a>(
+        &self,
+        tokens: &'a [String],
+    ) -> Result<ConvertionRequest<'a>, ParseFloatError> {
         Ok(ConvertionRequest {
             value: tokens[0].parse()?,
             source: &tokens[1],
@@ -76,73 +67,89 @@ impl Currency {
         })
     }
 
-    fn convert(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
-
+    fn convert(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<String, String> {
         if command.tokens.len() < 3 {
-            return self.invalid_command(server, &command);
+            return Err(self.invalid_command(client));
         }
 
         let request = match self.eval_command(&command.tokens) {
             Ok(request) => request,
             Err(_) => {
-                return self.invalid_command(server, &command);
+                return Err(self.invalid_command(client));
             }
         };
 
         match request.send() {
             Some(response) => {
-                let response = format!("{} {} => {:.4} {}",
-                                       request.value,
-                                       request.source.to_lowercase(),
-                                       response / 1.00000000,
-                                       request.target.to_lowercase());
+                let response = format!(
+                    "{} {} => {:.4} {}",
+                    request.value,
+                    request.source.to_lowercase(),
+                    response / 1.00000000,
+                    request.target.to_lowercase()
+                );
 
-                server.send_privmsg(&command.target, &response)
+                Ok(response)
             }
-            None => server.send_notice(&command.source, "Error while converting given currency"),
+            None => Err(String::from(
+                "An error occured during the conversion of the given currency",
+            )),
         }
     }
 
-    fn help(&self, server: &IrcServer, command: &mut PluginCommand) -> Result<(), IrcError> {
-        let help = format!("usage: {} currency value from_currency to_currency\r\n\
-                            example: 1.5 eur usd\r\n\
-                            available currencies: AUD, BGN, BRL, CAD, \
-                            CHF, CNY, CZK, DKK, GBP, HKD, HRK, HUF, \
-                            IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \
-                            NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, \
-                            TRY, USD, ZAR",
-                           server.current_nickname());
-
-        server.send_notice(&command.source, &help)
+    fn help(&self, client: &IrcClient) -> String {
+        format!(
+            "usage: {} currency value from_currency to_currency\r\n\
+             example: {0} currency 1.5 eur usd\r\n\
+             available currencies: AUD, BGN, BRL, CAD, \
+             CHF, CNY, CZK, DKK, GBP, HKD, HRK, HUF, \
+             IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \
+             NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, \
+             TRY, USD, ZAR",
+            client.current_nickname()
+        )
     }
 
-    fn invalid_command(&self, server: &IrcServer, command: &PluginCommand) -> Result<(), IrcError> {
-        let help = format!("Incorrect Command. \
-                           Send \"{} currency help\" for help.",
-                           server.current_nickname());
-
-        server.send_notice(&command.source, &help)
+    fn invalid_command(&self, client: &IrcClient) -> String {
+        format!(
+            "Incorrect Command. \
+             Send \"{} currency help\" for help.",
+            client.current_nickname()
+        )
     }
 }
 
 impl Plugin for Currency {
-    fn is_allowed(&self, _: &IrcServer, _: &Message) -> bool {
-        false
+    fn execute(&self, _: &IrcClient, _: &Message) -> ExecutionStatus {
+        ExecutionStatus::Done
     }
 
-    fn execute(&self, _: &IrcServer, _: &Message) -> Result<(), IrcError> {
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
         panic!("Currency does not implement the execute function!")
     }
 
-    fn command(&self, server: &IrcServer, mut command: PluginCommand) -> Result<(), IrcError> {
-
+    fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), IrcError> {
         if command.tokens.is_empty() {
-            return self.invalid_command(server, &command);
+            return client.send_notice(&command.source, &self.invalid_command(client));
         }
 
         match command.tokens[0].as_ref() {
-            "help" => self.help(server, &mut command),
-            _ => self.convert(server, command),
+            "help" => client.send_notice(&command.source, &self.help(client)),
+            _ => match self.convert(client, &mut command) {
+                Ok(msg) => client.send_privmsg(&command.target, &msg),
+                Err(msg) => client.send_notice(&command.source, &msg),
+            },
+        }
+    }
+
+    fn evaluate(&self, client: &IrcClient, mut command: PluginCommand) -> Result<String, String> {
+        if command.tokens.is_empty() {
+            return Err(self.invalid_command(client));
+        }
+
+        match command.tokens[0].as_ref() {
+            "help" => Ok(self.help(client)),
+            _ => self.convert(client, &mut command),
         }
     }
 }

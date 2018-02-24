@@ -114,7 +114,7 @@ impl Database for MysqlConnection {
 
     fn get(&self, name: &str, idx: i32) -> Option<Factoid> {
         match factoids::table.find((name, idx)).first(self) {
-            Ok(f) => Ok(f),
+            Ok(f) => Some(f),
             Err(e) => {
                 error!("DB Count Error: {}", e);
                 None

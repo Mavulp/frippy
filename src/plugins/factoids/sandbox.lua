@@ -16,6 +16,7 @@ end
 local sandbox_env = {
   print = send,
   println = sendln,
+  eval = nil,
   args = args,
   input = input,
   user = user,
@@ -49,17 +50,29 @@ sandbox_env.string.rep = nil
 sandbox_env.string.dump = nil
 sandbox_env.math.randomseed = nil
 
-local f, e = load(factoid, nil, nil, sandbox_env)
+-- Temporary evaluation function
+function eval(code)
+  local c, e = load(code, nil, nil, sandbox_env)
+  if c then
+    return c()
+  else
+    error(e)
+  end
+end
+
+sandbox_env.eval = eval
 
 -- Check if the factoid timed out
 function checktime(event, line)
-    if os.time() - time >= timeout then
-        error("Timed out after " .. timeout .. " seconds", 0)
-    else
-        -- Limit the cpu usage of factoids
-        sleep(1)
-    end
+  if os.time() - time >= timeout then
+    error("Timed out after " .. timeout .. " seconds", 0)
+  else
+    -- Limit the cpu usage of factoids
+    sleep(1)
+  end
 end
+
+local f, e = load(factoid, nil, nil, sandbox_env)
 
 -- Add timeout hook
 time = os.time()

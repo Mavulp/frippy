@@ -44,8 +44,8 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 
-extern crate irc;
 extern crate chrono;
+extern crate irc;
 extern crate time;
 
 pub mod plugin;

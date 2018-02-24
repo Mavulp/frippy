@@ -61,7 +61,9 @@ impl Tell {
         };
 
         let mut tells = try_lock!(self.tells);
-        let tell_messages = tells.entry(receiver).or_insert(Vec::with_capacity(3));
+        let tell_messages = tells
+            .entry(receiver)
+            .or_insert_with(|| Vec::with_capacity(3));
         (*tell_messages).push(tell);
 
         Ok("Got it!")
@@ -75,7 +77,7 @@ impl Tell {
                     receiver,
                     &format!("Tell from {}: {}", tell.sender, tell.message),
                 ) {
-                    return ExecutionStatus::Err(e);
+                    return ExecutionStatus::Err(Box::new(e));
                 }
                 debug!(
                     "Sent {:?} from {:?} to {:?}",
@@ -107,8 +109,9 @@ impl Tell {
 impl Plugin for Tell {
     fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::JOIN(_, _, _) => self.send_tell(client, message.source_nickname().unwrap()),
-            Command::PRIVMSG(_, _) => self.send_tell(client, message.source_nickname().unwrap()),
+            Command::JOIN(_, _, _) | Command::PRIVMSG(_, _) => {
+                self.send_tell(client, message.source_nickname().unwrap())
+            }
             _ => ExecutionStatus::Done,
         }
     }

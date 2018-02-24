@@ -32,7 +32,7 @@ pub struct Factoid {
 #[cfg(feature = "mysql")]
 use self::mysql::factoids;
 #[cfg_attr(feature = "mysql", derive(Insertable))]
-#[cfg_attr(feature = "mysql", table_name="factoids")]
+#[cfg_attr(feature = "mysql", table_name = "factoids")]
 pub struct NewFactoid<'a> {
     pub name: &'a str,
     pub idx: i32,
@@ -40,7 +40,6 @@ pub struct NewFactoid<'a> {
     pub author: &'a str,
     pub created: NaiveDateTime,
 }
-
 
 pub trait Database: Send {
     fn insert_factoid(&mut self, factoid: &NewFactoid) -> DbResponse;
@@ -60,7 +59,7 @@ impl Database for HashMap<(String, i32), Factoid> {
             created: factoid.created,
         };
 
-        let name = String::from(factoid.name.clone());
+        let name = factoid.name.clone();
         match self.insert((name, factoid.idx), factoid) {
             None => DbResponse::Success,
             Some(_) => DbResponse::Failed("Factoid was overwritten"),
@@ -68,7 +67,7 @@ impl Database for HashMap<(String, i32), Factoid> {
     }
 
     fn get_factoid(&self, name: &str, idx: i32) -> Option<Factoid> {
-        self.get(&(String::from(name), idx)).map(|f| f.clone())
+        self.get(&(String::from(name), idx)).cloned()
     }
 
     fn delete_factoid(&mut self, name: &str, idx: i32) -> DbResponse {
@@ -79,9 +78,7 @@ impl Database for HashMap<(String, i32), Factoid> {
     }
 
     fn count_factoids(&self, name: &str) -> Result<i32, &'static str> {
-        Ok(self.iter()
-               .filter(|&(&(ref n, _), _)| n == name)
-               .count() as i32)
+        Ok(self.iter().filter(|&(&(ref n, _), _)| n == name).count() as i32)
     }
 }
 
@@ -107,8 +104,9 @@ impl Database for Pool<ConnectionManager<MysqlConnection>> {
 
         let conn = &*self.get().expect("Failed to get connection");
         match diesel::insert_into(factoids::table)
-                  .values(factoid)
-                  .execute(conn) {
+            .values(factoid)
+            .execute(conn)
+        {
             Ok(_) => DbResponse::Success,
             Err(e) => {
                 error!("DB Insertion Error: {}", e);
@@ -124,7 +122,7 @@ impl Database for Pool<ConnectionManager<MysqlConnection>> {
             Err(e) => {
                 error!("DB Count Error: {}", e);
                 None
-            },
+            }
         }
     }
 
@@ -133,10 +131,12 @@ impl Database for Pool<ConnectionManager<MysqlConnection>> {
         use self::factoids::columns;
 
         let conn = &*self.get().expect("Failed to get connection");
-        match diesel::delete(factoids::table
-                                 .filter(columns::name.eq(name))
-                                 .filter(columns::idx.eq(idx)))
-                      .execute(conn) {
+        match diesel::delete(
+            factoids::table
+                .filter(columns::name.eq(name))
+                .filter(columns::idx.eq(idx)),
+        ).execute(conn)
+        {
             Ok(v) => {
                 if v > 0 {
                     DbResponse::Success
@@ -152,7 +152,6 @@ impl Database for Pool<ConnectionManager<MysqlConnection>> {
     }
 
     fn count_factoids(&self, name: &str) -> Result<i32, &'static str> {
-
         let conn = &*self.get().expect("Failed to get connection");
         let count: Result<i64, _> = factoids::table
             .filter(factoids::columns::name.eq(name))
@@ -164,7 +163,7 @@ impl Database for Pool<ConnectionManager<MysqlConnection>> {
             Err(e) => {
                 error!("DB Count Error: {}", e);
                 Err("Database Error")
-            },
+            }
         }
     }
 }

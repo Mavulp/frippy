@@ -44,7 +44,6 @@ impl Url {
             None => return Err("No Url was found."),
         };
 
-
         match utils::download(self.max_kib, &url) {
             Some(body) => {
                 let doc = Document::from(body.as_ref());

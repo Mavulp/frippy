@@ -7,10 +7,10 @@ extern crate irc;
 extern crate time;
 
 #[cfg(feature = "mysql")]
+extern crate diesel;
+#[cfg(feature = "mysql")]
 #[macro_use]
 extern crate diesel_migrations;
-#[cfg(feature = "mysql")]
-extern crate diesel;
 #[cfg(feature = "mysql")]
 extern crate r2d2;
 #[cfg(feature = "mysql")]
@@ -103,10 +103,7 @@ fn main() {
         let mut mysql_url = None;
         if let Some(ref options) = config.options {
             if let Some(disabled) = options.get("disabled_plugins") {
-                disabled_plugins = Some(disabled
-                                            .split(",")
-                                            .map(|p| p.trim())
-                                            .collect::<Vec<_>>());
+                disabled_plugins = Some(disabled.split(',').map(|p| p.trim()).collect::<Vec<_>>());
             }
 
             mysql_url = options.get("mysql_url");
@@ -129,18 +126,18 @@ fn main() {
 
                 let manager = ConnectionManager::<MysqlConnection>::new(url.clone());
                 match r2d2::Pool::builder().build(manager) {
-                    Ok(pool) => {
-                        match embedded_migrations::run(&*pool.get().expect("Failed to get connection")) {
-                            Ok(_) => {
-                                bot.add_plugin(plugins::Factoids::new(pool));
-                                info!("Connected to MySQL server")
-                            }
-                            Err(e) => {
-                                bot.add_plugin(plugins::Factoids::new(HashMap::new()));
-                                error!("Failed to run migrations: {}", e);
-                            }
+                    Ok(pool) => match embedded_migrations::run(&*pool.get()
+                        .expect("Failed to get connection"))
+                    {
+                        Ok(_) => {
+                            bot.add_plugin(plugins::Factoids::new(pool));
+                            info!("Connected to MySQL server")
                         }
-                    }
+                        Err(e) => {
+                            bot.add_plugin(plugins::Factoids::new(HashMap::new()));
+                            error!("Failed to run migrations: {}", e);
+                        }
+                    },
                     Err(e) => error!("Failed to connect to database: {}", e),
                 }
             } else {
@@ -149,12 +146,11 @@ fn main() {
         }
         #[cfg(not(feature = "mysql"))]
         {
-            if let Some(_) = mysql_url {
+            if mysql_url.is_some() {
                 error!("frippy was not built with the mysql feature")
             }
             bot.add_plugin(plugins::Factoids::new(HashMap::new()));
         }
-
 
         if let Some(disabled_plugins) = disabled_plugins {
             for name in disabled_plugins {

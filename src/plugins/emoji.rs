@@ -100,7 +100,7 @@ impl Plugin for Emoji {
                 .send_privmsg(message.response_target().unwrap(), &self.emoji(content))
             {
                 Ok(_) => ExecutionStatus::Done,
-                Err(e) => ExecutionStatus::Err(e),
+                Err(e) => ExecutionStatus::Err(Box::new(e)),
             },
             _ => ExecutionStatus::Done,
         }

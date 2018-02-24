@@ -27,7 +27,7 @@ impl KeepNick {
             info!("Trying to switch nick from {} to {}", client_nick, cfg_nick);
             match client.send(Command::NICK(cfg_nick)) {
                 Ok(_) => ExecutionStatus::Done,
-                Err(e) => ExecutionStatus::Err(e),
+                Err(e) => ExecutionStatus::Err(Box::new(e)),
             }
         } else {
             ExecutionStatus::Done

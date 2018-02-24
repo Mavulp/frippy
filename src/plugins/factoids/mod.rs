@@ -35,25 +35,27 @@ macro_rules! try_lock {
 
 impl<T: Database> Factoids<T> {
     pub fn new(db: T) -> Factoids<T> {
-        Factoids { factoids: Mutex::new(db) }
+        Factoids {
+            factoids: Mutex::new(db),
+        }
     }
 
     fn create_factoid(&self, name: &str, content: &str, author: &str) -> Result<&str, &str> {
-            let count = try_lock!(self.factoids).count_factoids(&name)?;
-            let tm = time::now().to_timespec();
+        let count = try_lock!(self.factoids).count_factoids(name)?;
+        let tm = time::now().to_timespec();
 
-            let factoid = database::NewFactoid {
-                name: name,
-                idx: count,
-                content: content,
-                author: author,
-                created: NaiveDateTime::from_timestamp(tm.sec, tm.nsec as u32),
-            };
+        let factoid = database::NewFactoid {
+            name: name,
+            idx: count,
+            content: content,
+            author: author,
+            created: NaiveDateTime::from_timestamp(tm.sec, tm.nsec as u32),
+        };
 
-            match try_lock!(self.factoids).insert_factoid(&factoid) {
-                DbResponse::Success => Ok("Successfully added"),
-                DbResponse::Failed(e) => Err(e),
-            }
+        match try_lock!(self.factoids).insert_factoid(&factoid) {
+            DbResponse::Success => Ok("Successfully added"),
+            DbResponse::Failed(e) => Err(e),
+        }
     }
 
     fn add(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<(), IrcError> {
@@ -70,7 +72,11 @@ impl<T: Database> Factoids<T> {
         }
     }
 
-    fn from_url(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<(), IrcError> {
+    fn save_from_url(
+        &self,
+        client: &IrcClient,
+        command: &mut PluginCommand,
+    ) -> Result<(), IrcError> {
         if command.tokens.len() < 2 {
             return self.invalid_command(client, command);
         }
@@ -100,12 +106,11 @@ impl<T: Database> Factoids<T> {
 
         match try_lock!(self.factoids).delete_factoid(&name, count - 1) {
             DbResponse::Success => client.send_notice(&command.source, "Successfully removed"),
-            DbResponse::Failed(e) => client.send_notice(&command.source, &e),
+            DbResponse::Failed(e) => client.send_notice(&command.source, e),
         }
     }
 
     fn get(&self, client: &IrcClient, command: &PluginCommand) -> Result<(), IrcError> {
-
         let (name, idx) = match command.tokens.len() {
             0 => return self.invalid_command(client, command),
             1 => {
@@ -135,19 +140,17 @@ impl<T: Database> Factoids<T> {
         let factoid = match try_lock!(self.factoids).get_factoid(name, idx) {
             Some(v) => v,
             None => {
-                return client.send_notice(&command.source,
-                                          &format!("{}~{} does not exist", name, idx))
+                return client
+                    .send_notice(&command.source, &format!("{}~{} does not exist", name, idx))
             }
         };
 
         let message = factoid.content.replace("\n", "|").replace("\r", "");
 
-        client.send_privmsg(&command.target,
-                            &format!("{}: {}", factoid.name, message))
+        client.send_privmsg(&command.target, &format!("{}: {}", factoid.name, message))
     }
 
     fn info(&self, client: &IrcClient, command: &PluginCommand) -> Result<(), IrcError> {
-
         match command.tokens.len() {
             0 => self.invalid_command(client, command),
             1 => {
@@ -159,14 +162,12 @@ impl<T: Database> Factoids<T> {
 
                 match count {
                     0 => client.send_notice(&command.source, &format!("{} does not exist", name)),
-                    1 => {
-                        client.send_privmsg(&command.target,
-                                            &format!("There is 1 version of {}", name))
-                    }
-                    _ => {
-                        client.send_privmsg(&command.target,
-                                            &format!("There are {} versions of {}", count, name))
-                    }
+                    1 => client
+                        .send_privmsg(&command.target, &format!("There is 1 version of {}", name)),
+                    _ => client.send_privmsg(
+                        &command.target,
+                        &format!("There are {} versions of {}", count, name),
+                    ),
                 }
             }
             _ => {
@@ -179,29 +180,32 @@ impl<T: Database> Factoids<T> {
                 let factoid = match try_lock!(self.factoids).get_factoid(name, idx) {
                     Some(v) => v,
                     None => {
-                        return client.send_notice(&command.source,
-                                                  &format!("{}~{} does not exist", name, idx))
+                        return client.send_notice(
+                            &command.source,
+                            &format!("{}~{} does not exist", name, idx),
+                        )
                     }
                 };
 
-                client.send_privmsg(&command.target,
-                                    &format!("{}: Added by {} at {} UTC",
-                                             name,
-                                             factoid.author,
-                                             factoid.created))
+                client.send_privmsg(
+                    &command.target,
+                    &format!(
+                        "{}: Added by {} at {} UTC",
+                        name, factoid.author, factoid.created
+                    ),
+                )
             }
-
         }
     }
 
-    fn exec(&self,
-            client: &IrcClient,
-            mut command: PluginCommand,
-            error: bool)
-            -> Result<(), IrcError> {
+    fn exec(
+        &self,
+        client: &IrcClient,
+        mut command: PluginCommand,
+        error: bool,
+    ) -> Result<(), IrcError> {
         if command.tokens.len() < 1 {
             self.invalid_command(client, &command)
-
         } else {
             let name = command.tokens.remove(0);
             let count = match try_lock!(self.factoids).count_factoids(&name) {
@@ -215,10 +219,10 @@ impl<T: Database> Factoids<T> {
                 None => return Ok(()),
             };
 
-            let value = &if factoid.starts_with(">") {
+            let value = &if factoid.starts_with('>') {
                 let factoid = String::from(&factoid[1..]);
 
-                if factoid.starts_with(">") {
+                if factoid.starts_with('>') {
                     factoid
                 } else {
                     match self.run_lua(&name, &factoid, &command) {
@@ -234,12 +238,12 @@ impl<T: Database> Factoids<T> {
         }
     }
 
-    fn run_lua(&self,
-               name: &str,
-               code: &str,
-               command: &PluginCommand)
-               -> Result<String, rlua::Error> {
-
+    fn run_lua(
+        &self,
+        name: &str,
+        code: &str,
+        command: &PluginCommand,
+    ) -> Result<String, rlua::Error> {
         let args = command
             .tokens
             .iter()
@@ -295,7 +299,6 @@ impl<T: Database> Plugin for Factoids<T> {
             };
 
             self.exec(client, c, false)
-
         } else {
             Ok(())
         }
@@ -309,7 +312,7 @@ impl<T: Database> Plugin for Factoids<T> {
         let sub_command = command.tokens.remove(0);
         match sub_command.as_ref() {
             "add" => self.add(client, &mut command),
-            "fromurl" => self.from_url(client, &mut command),
+            "fromurl" => self.save_from_url(client, &mut command),
             "remove" => self.remove(client, &mut command),
             "get" => self.get(client, &command),
             "info" => self.info(client, &command),
@@ -319,7 +322,9 @@ impl<T: Database> Plugin for Factoids<T> {
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
-        Err(String::from("Evaluation of commands is not implemented for Factoids at this time"))
+        Err(String::from(
+            "Evaluation of commands is not implemented for Factoids at this time",
+        ))
     }
 }
 

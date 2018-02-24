@@ -7,10 +7,7 @@ use self::reqwest::Client;
 use self::reqwest::header::Connection;
 
 pub fn download(max_kib: usize, url: &str) -> Option<String> {
-    let response = Client::new()
-        .get(url)
-        .header(Connection::close())
-        .send();
+    let response = Client::new().get(url).header(Connection::close()).send();
 
     match response {
         Ok(mut response) => {
@@ -44,16 +41,18 @@ pub fn download(max_kib: usize, url: &str) -> Option<String> {
 
                 // Check if the file is too large to download
                 if written > max_kib * 1024 {
-                    debug!("Stopping download - File from {:?} is larger than {} KiB", url, max_kib);
+                    debug!(
+                        "Stopping download - File from {:?} is larger than {} KiB",
+                        url, max_kib
+                    );
                     return None;
                 }
-
             }
             Some(body)
         }
         Err(e) => {
             debug!("Bad response from {:?}: ({})", url, e);
-            return None;
+            None
         }
     }
 }

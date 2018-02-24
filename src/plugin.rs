@@ -11,7 +11,7 @@ pub enum ExecutionStatus {
     /// The [`Plugin`](trait.Plugin.html) does not need to do any more work on this [`Message`](../../irc/proto/message/struct.Message.html).
     Done,
     /// An error occured during the execution.
-    Err(IrcError),
+    Err(Box<IrcError>),
     /// The execution needs to be done by [`execute_threaded()`](trait.Plugin.html#tymethod.execute_threaded).
     RequiresThread,
 }

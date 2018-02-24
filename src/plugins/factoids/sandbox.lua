@@ -13,21 +13,43 @@ function sendln(text)
   table.insert(output, "")
 end
 
-local env = { print = send,
-              println = sendln,
-              args = args,
-              input = input,
-              user = user,
-              channel = channel,
-              request = download,
-              pairs = pairs,
-              table = table,
-              string = string,
-              tostring = tostring,
-              tonumber = tonumber,
-              math = math }
+local sandbox_env = {
+  print = send,
+  println = sendln,
+  args = args,
+  input = input,
+  user = user,
+  channel = channel,
+  request = download,
+  string = string,
+  math = math,
+  table = table,
+  pairs = pairs,
+  ipairs = ipairs,
+  next = next,
+  select = select,
+  unpack = unpack,
+  tostring = tostring,
+  tonumber = tonumber,
+  type = type,
+  assert = assert,
+  error = error,
+  pcall = pcall,
+  xpcall = xpcall,
+  _VERSION = _VERSION
+}
 
-local f, e = load(factoid, nil, nil, env)
+sandbox_env.os = {
+  clock = os.clock,
+  time = os.time,
+  difftime = os.difftime
+}
+
+sandbox_env.string.rep = nil
+sandbox_env.string.dump = nil
+sandbox_env.math.randomseed = nil
+
+local f, e = load(factoid, nil, nil, sandbox_env)
 
 -- Check if the factoid timed out
 function checktime(event, line)

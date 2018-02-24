@@ -106,14 +106,20 @@ impl Database for MysqlConnection {
                   .execute(self) {
             Ok(_) => DbResponse::Success,
             Err(e) => {
-                error!("DB Insertion Error: \"{}\"", e);
+                error!("DB Insertion Error: {}", e);
                 DbResponse::Failed("Failed to add factoid")
             }
         }
     }
 
     fn get(&self, name: &str, idx: i32) -> Option<Factoid> {
-        factoids::table.find((name, idx)).first(self).ok()
+        match factoids::table.find((name, idx)).first(self) {
+            Ok(f) => Ok(f),
+            Err(e) => {
+                error!("DB Count Error: {}", e);
+                None
+            },
+        }
     }
 
     fn delete(&mut self, name: &str, idx: i32) -> DbResponse {
@@ -131,7 +137,7 @@ impl Database for MysqlConnection {
                 }
             }
             Err(e) => {
-                error!("DB Deletion Error: \"{}\"", e);
+                error!("DB Deletion Error: {}", e);
                 DbResponse::Failed("Failed to delete factoid")
             }
         }
@@ -145,7 +151,10 @@ impl Database for MysqlConnection {
 
         match count {
             Ok(c) => Ok(c as i32),
-            Err(_) => Err("Database Error"),
+            Err(e) => {
+                error!("DB Count Error: {}", e);
+                Err("Database Error")
+            },
         }
     }
 }

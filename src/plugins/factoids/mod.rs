@@ -39,7 +39,7 @@ impl<T: Database> Factoids<T> {
     }
 
     fn create_factoid(&self, name: &str, content: &str, author: &str) -> Result<&str, &str> {
-            let count = try_lock!(self.factoids).count(&name)?;
+            let count = try_lock!(self.factoids).count_factoids(&name)?;
             let tm = time::now().to_timespec();
 
             let factoid = database::NewFactoid {
@@ -50,7 +50,7 @@ impl<T: Database> Factoids<T> {
                 created: NaiveDateTime::from_timestamp(tm.sec, tm.nsec as u32),
             };
 
-            match try_lock!(self.factoids).insert(&factoid) {
+            match try_lock!(self.factoids).insert_factoid(&factoid) {
                 DbResponse::Success => Ok("Successfully added"),
                 DbResponse::Failed(e) => Err(e),
             }
@@ -93,12 +93,12 @@ impl<T: Database> Factoids<T> {
         }
 
         let name = command.tokens.remove(0);
-        let count = match try_lock!(self.factoids).count(&name) {
+        let count = match try_lock!(self.factoids).count_factoids(&name) {
             Ok(c) => c,
             Err(e) => return client.send_notice(&command.source, e),
         };
 
-        match try_lock!(self.factoids).delete(&name, count - 1) {
+        match try_lock!(self.factoids).delete_factoid(&name, count - 1) {
             DbResponse::Success => client.send_notice(&command.source, "Successfully removed"),
             DbResponse::Failed(e) => client.send_notice(&command.source, &e),
         }
@@ -110,7 +110,7 @@ impl<T: Database> Factoids<T> {
             0 => return self.invalid_command(client, command),
             1 => {
                 let name = &command.tokens[0];
-                let count = match try_lock!(self.factoids).count(name) {
+                let count = match try_lock!(self.factoids).count_factoids(name) {
                     Ok(c) => c,
                     Err(e) => return client.send_notice(&command.source, e),
                 };
@@ -132,7 +132,7 @@ impl<T: Database> Factoids<T> {
             }
         };
 
-        let factoid = match try_lock!(self.factoids).get(name, idx) {
+        let factoid = match try_lock!(self.factoids).get_factoid(name, idx) {
             Some(v) => v,
             None => {
                 return client.send_notice(&command.source,
@@ -152,7 +152,7 @@ impl<T: Database> Factoids<T> {
             0 => self.invalid_command(client, command),
             1 => {
                 let name = &command.tokens[0];
-                let count = match try_lock!(self.factoids).count(name) {
+                let count = match try_lock!(self.factoids).count_factoids(name) {
                     Ok(c) => c,
                     Err(e) => return client.send_notice(&command.source, e),
                 };
@@ -176,7 +176,7 @@ impl<T: Database> Factoids<T> {
                     Err(_) => return client.send_notice(&command.source, "Invalid index"),
                 };
 
-                let factoid = match try_lock!(self.factoids).get(name, idx) {
+                let factoid = match try_lock!(self.factoids).get_factoid(name, idx) {
                     Some(v) => v,
                     None => {
                         return client.send_notice(&command.source,
@@ -204,12 +204,12 @@ impl<T: Database> Factoids<T> {
 
         } else {
             let name = command.tokens.remove(0);
-            let count = match try_lock!(self.factoids).count(&name) {
+            let count = match try_lock!(self.factoids).count_factoids(&name) {
                 Ok(c) => c,
                 Err(e) => return client.send_notice(&command.source, e),
             };
 
-            let factoid = match try_lock!(self.factoids).get(&name, count - 1) {
+            let factoid = match try_lock!(self.factoids).get_factoid(&name, count - 1) {
                 Some(v) => v.content,
                 None if error => return self.invalid_command(client, &command),
                 None => return Ok(()),

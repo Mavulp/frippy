@@ -14,7 +14,14 @@ name = "frippy"
 doc = false
 
 [features]
-mysql = ["diesel", "diesel_infer_schema", "diesel_migrations", "dotenv"]
+mysql = [
+  "diesel",
+  "diesel_infer_schema",
+  "diesel_migrations",
+  "dotenv",
+  "r2d2",
+  "r2d2-diesel"
+]
 
 [dependencies]
 irc             = "0.13.4"
@@ -51,6 +58,14 @@ features = ["mysql"]
 version = "1.1.0"
 optional = true
 features = ["mysql"]
+
+[dependencies.r2d2]
+version = "0.8.2"
+optional = true
+
+[dependencies.r2d2-diesel]
+version = "1.0.0"
+optional = true
 
 [dependencies.dotenv]
 version = "0.11.0"

@@ -5,9 +5,12 @@ use std::collections::HashMap;
 
 #[cfg(feature = "mysql")]
 use diesel::prelude::*;
-
 #[cfg(feature = "mysql")]
 use diesel::mysql::MysqlConnection;
+#[cfg(feature = "mysql")]
+use r2d2::Pool;
+#[cfg(feature = "mysql")]
+use r2d2_diesel::ConnectionManager;
 
 use chrono::NaiveDateTime;
 
@@ -40,15 +43,15 @@ pub struct NewFactoid<'a> {
 
 
 pub trait Database: Send {
-    fn insert(&mut self, factoid: &NewFactoid) -> DbResponse;
-    fn get(&self, name: &str, idx: i32) -> Option<Factoid>;
-    fn delete(&mut self, name: &str, idx: i32) -> DbResponse;
-    fn count(&self, name: &str) -> Result<i32, &'static str>;
+    fn insert_factoid(&mut self, factoid: &NewFactoid) -> DbResponse;
+    fn get_factoid(&self, name: &str, idx: i32) -> Option<Factoid>;
+    fn delete_factoid(&mut self, name: &str, idx: i32) -> DbResponse;
+    fn count_factoids(&self, name: &str) -> Result<i32, &'static str>;
 }
 
 // HashMap
 impl Database for HashMap<(String, i32), Factoid> {
-    fn insert(&mut self, factoid: &NewFactoid) -> DbResponse {
+    fn insert_factoid(&mut self, factoid: &NewFactoid) -> DbResponse {
         let factoid = Factoid {
             name: String::from(factoid.name),
             idx: factoid.idx,
@@ -64,18 +67,18 @@ impl Database for HashMap<(String, i32), Factoid> {
         }
     }
 
-    fn get(&self, name: &str, idx: i32) -> Option<Factoid> {
+    fn get_factoid(&self, name: &str, idx: i32) -> Option<Factoid> {
         self.get(&(String::from(name), idx)).map(|f| f.clone())
     }
 
-    fn delete(&mut self, name: &str, idx: i32) -> DbResponse {
+    fn delete_factoid(&mut self, name: &str, idx: i32) -> DbResponse {
         match self.remove(&(String::from(name), idx)) {
             Some(_) => DbResponse::Success,
             None => DbResponse::Failed("Factoid not found"),
         }
     }
 
-    fn count(&self, name: &str) -> Result<i32, &'static str> {
+    fn count_factoids(&self, name: &str) -> Result<i32, &'static str> {
         Ok(self.iter()
                .filter(|&(&(ref n, _), _)| n == name)
                .count() as i32)
@@ -98,12 +101,14 @@ mod mysql {
 }
 
 #[cfg(feature = "mysql")]
-impl Database for MysqlConnection {
-    fn insert(&mut self, factoid: &NewFactoid) -> DbResponse {
+impl Database for Pool<ConnectionManager<MysqlConnection>> {
+    fn insert_factoid(&mut self, factoid: &NewFactoid) -> DbResponse {
         use diesel;
+
+        let conn = &*self.get().expect("Failed to get connection");
         match diesel::insert_into(factoids::table)
                   .values(factoid)
-                  .execute(self) {
+                  .execute(conn) {
             Ok(_) => DbResponse::Success,
             Err(e) => {
                 error!("DB Insertion Error: {}", e);
@@ -112,8 +117,9 @@ impl Database for MysqlConnection {
         }
     }
 
-    fn get(&self, name: &str, idx: i32) -> Option<Factoid> {
-        match factoids::table.find((name, idx)).first(self) {
+    fn get_factoid(&self, name: &str, idx: i32) -> Option<Factoid> {
+        let conn = &*self.get().expect("Failed to get connection");
+        match factoids::table.find((name, idx)).first(conn) {
             Ok(f) => Some(f),
             Err(e) => {
                 error!("DB Count Error: {}", e);
@@ -122,13 +128,15 @@ impl Database for MysqlConnection {
         }
     }
 
-    fn delete(&mut self, name: &str, idx: i32) -> DbResponse {
+    fn delete_factoid(&mut self, name: &str, idx: i32) -> DbResponse {
         use diesel;
         use self::factoids::columns;
+
+        let conn = &*self.get().expect("Failed to get connection");
         match diesel::delete(factoids::table
                                  .filter(columns::name.eq(name))
                                  .filter(columns::idx.eq(idx)))
-                      .execute(self) {
+                      .execute(conn) {
             Ok(v) => {
                 if v > 0 {
                     DbResponse::Success
@@ -143,11 +151,13 @@ impl Database for MysqlConnection {
         }
     }
 
-    fn count(&self, name: &str) -> Result<i32, &'static str> {
+    fn count_factoids(&self, name: &str) -> Result<i32, &'static str> {
+
+        let conn = &*self.get().expect("Failed to get connection");
         let count: Result<i64, _> = factoids::table
             .filter(factoids::columns::name.eq(name))
             .count()
-            .first(self);
+            .first(conn);
 
         match count {
             Ok(c) => Ok(c as i32),

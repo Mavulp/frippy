@@ -32,6 +32,10 @@
 #[cfg(feature = "mysql")]
 #[macro_use]
 extern crate diesel;
+#[cfg(feature = "mysql")]
+extern crate r2d2;
+#[cfg(feature = "mysql")]
+extern crate r2d2_diesel;
 
 #[macro_use]
 extern crate frippy_derive;

@@ -11,6 +11,10 @@ extern crate time;
 extern crate diesel_migrations;
 #[cfg(feature = "mysql")]
 extern crate diesel;
+#[cfg(feature = "mysql")]
+extern crate r2d2;
+#[cfg(feature = "mysql")]
+extern crate r2d2_diesel;
 
 #[macro_use]
 extern crate log;
@@ -119,13 +123,16 @@ fn main() {
         #[cfg(feature = "mysql")]
         {
             if let Some(url) = mysql_url {
-                use diesel;
-                use diesel::Connection;
-                match diesel::mysql::MysqlConnection::establish(url) {
-                    Ok(conn) => {
-                        match embedded_migrations::run(&conn) {
+                use diesel::MysqlConnection;
+                use r2d2;
+                use r2d2_diesel::ConnectionManager;
+
+                let manager = ConnectionManager::<MysqlConnection>::new(url.clone());
+                match r2d2::Pool::builder().build(manager) {
+                    Ok(pool) => {
+                        match embedded_migrations::run(&*pool.get().expect("Failed to get connection")) {
                             Ok(_) => {
-                                bot.add_plugin(plugins::Factoids::new(conn));
+                                bot.add_plugin(plugins::Factoids::new(pool));
                                 info!("Connected to MySQL server")
                             }
                             Err(e) => {

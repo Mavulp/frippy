@@ -32,10 +32,21 @@ impl Url {
             Some(captures) => {
                 debug!("Url captures: {:?}", captures);
 
-                Some(captures.get(2).unwrap().as_str().to_string())
+                Some(captures.get(2)?.as_str().to_string())
             }
             None => None,
         }
+    }
+
+    fn get_title(&self, body: &str) -> Option<String> {
+        let doc = Document::from(body.as_ref());
+        let title = doc.find(Name("title")).next()?;
+        let title = title.children().next()?;
+        let title_text = title.as_text()?.trim().replace("\n", "|");
+        debug!("Title: {:?}", title);
+        debug!("Text: {:?}", title_text);
+
+        Some(title_text)
     }
 
     fn url(&self, text: &str) -> Result<String, &str> {
@@ -46,16 +57,9 @@ impl Url {
 
         match utils::download(self.max_kib, &url) {
             Some(body) => {
-                let doc = Document::from(body.as_ref());
-                if let Some(title) = doc.find(Name("title")).next() {
-                    let title = title.children().next().unwrap();
-                    let title_text = title.as_text().unwrap().trim().replace("\n", "|");
-                    debug!("Title: {:?}", title);
-                    debug!("Text: {:?}", title_text);
-
-                    Ok(title_text)
-                } else {
-                    Err("No title was found.")
+                match self.get_title(&body) {
+                    Some(title) => Ok(title),
+                    None => Err("No title was found.")
                 }
             }
             None => Err("Failed to download document."),
@@ -79,7 +83,10 @@ impl Plugin for Url {
         match message.command {
             Command::PRIVMSG(_, ref content) => match self.url(content) {
                 Ok(title) => client.send_privmsg(message.response_target().unwrap(), &title),
-                Err(_) => Ok(()),
+                Err(e) => {
+                    error!("Url plugin error: {}", e);
+                    Ok(())
+                },
             },
             _ => Ok(()),
         }

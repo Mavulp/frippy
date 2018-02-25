@@ -19,6 +19,8 @@ extern crate r2d2_diesel;
 #[macro_use]
 extern crate log;
 
+#[cfg(feature = "mysql")]
+use std::sync::Arc;
 use std::collections::HashMap;
 use log::{Level, LevelFilter, Metadata, Record};
 
@@ -115,7 +117,6 @@ fn main() {
         bot.add_plugin(plugins::Emoji::new());
         bot.add_plugin(plugins::Currency::new());
         bot.add_plugin(plugins::KeepNick::new());
-        bot.add_plugin(plugins::Tell::new());
 
         #[cfg(feature = "mysql")]
         {
@@ -130,11 +131,14 @@ fn main() {
                         .expect("Failed to get connection"))
                     {
                         Ok(_) => {
-                            bot.add_plugin(plugins::Factoids::new(pool));
+                            let pool = Arc::new(pool);
+                            bot.add_plugin(plugins::Factoids::new(pool.clone()));
+                            bot.add_plugin(plugins::Tell::new(pool.clone()));
                             info!("Connected to MySQL server")
                         }
                         Err(e) => {
                             bot.add_plugin(plugins::Factoids::new(HashMap::new()));
+                            bot.add_plugin(plugins::Tell::new(HashMap::new()));
                             error!("Failed to run migrations: {}", e);
                         }
                     },
@@ -142,6 +146,7 @@ fn main() {
                 }
             } else {
                 bot.add_plugin(plugins::Factoids::new(HashMap::new()));
+                bot.add_plugin(plugins::Tell::new(HashMap::new()));
             }
         }
         #[cfg(not(feature = "mysql"))]
@@ -150,6 +155,7 @@ fn main() {
                 error!("frippy was not built with the mysql feature")
             }
             bot.add_plugin(plugins::Factoids::new(HashMap::new()));
+            bot.add_plugin(plugins::Tell::new(HashMap::new()));
         }
 
         if let Some(disabled_plugins) = disabled_plugins {

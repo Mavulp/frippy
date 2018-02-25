@@ -1,6 +1,8 @@
 #[cfg(feature = "mysql")]
 extern crate dotenv;
 
+#[cfg(feature = "mysql")]
+use std::sync::Arc;
 use std::collections::HashMap;
 
 #[cfg(feature = "mysql")]
@@ -29,8 +31,6 @@ pub struct Factoid {
     pub created: NaiveDateTime,
 }
 
-#[cfg(feature = "mysql")]
-use self::mysql::factoids;
 #[cfg_attr(feature = "mysql", derive(Insertable))]
 #[cfg_attr(feature = "mysql", table_name = "factoids")]
 pub struct NewFactoid<'a> {
@@ -82,10 +82,10 @@ impl Database for HashMap<(String, i32), Factoid> {
     }
 }
 
-// Diesel automatically define the factoids module as public.
-// For now this is how we keep it private.
+// Diesel automatically defines the factoids module as public.
+// We create a schema module to keep it private.
 #[cfg(feature = "mysql")]
-mod mysql {
+mod schema {
     table! {
         factoids (name, idx) {
             name -> Varchar,
@@ -98,7 +98,10 @@ mod mysql {
 }
 
 #[cfg(feature = "mysql")]
-impl Database for Pool<ConnectionManager<MysqlConnection>> {
+use self::schema::factoids;
+
+#[cfg(feature = "mysql")]
+impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     fn insert_factoid(&mut self, factoid: &NewFactoid) -> DbResponse {
         use diesel;
 

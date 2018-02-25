@@ -49,7 +49,7 @@ impl<T: Database> Factoids<T> {
             idx: count,
             content: content,
             author: author,
-            created: NaiveDateTime::from_timestamp(tm.sec, tm.nsec as u32),
+            created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
         };
 
         match try_lock!(self.factoids).insert_factoid(&factoid) {

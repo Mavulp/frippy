@@ -1,10 +1,14 @@
 use irc::client::prelude::*;
 use irc::error::IrcError;
 
-use std::collections::HashMap;
+use time;
+use chrono::NaiveDateTime;
 use std::sync::Mutex;
 
 use plugin::*;
+
+pub mod database;
+use self::database::{Database, DbResponse};
 
 macro_rules! try_lock {
     ( $m:expr ) => {
@@ -15,22 +19,15 @@ macro_rules! try_lock {
     }
 }
 
-#[derive(PluginName, Default, Debug)]
-pub struct Tell {
-    tells: Mutex<HashMap<String, Vec<TellMessage>>>,
+#[derive(PluginName, Default)]
+pub struct Tell<T: Database> {
+    tells: Mutex<T>,
 }
 
-#[derive(Default, Debug)]
-struct TellMessage {
-    sender: String,
-    // TODO Add time
-    message: String,
-}
-
-impl Tell {
-    pub fn new() -> Tell {
+impl<T: Database> Tell<T> {
+    pub fn new(db: T) -> Tell<T> {
         Tell {
-            tells: Mutex::new(HashMap::new()),
+            tells: Mutex::new(db),
         }
     }
 
@@ -54,24 +51,24 @@ impl Tell {
             }
         }
 
+        let tm = time::now().to_timespec();
         let message = command.tokens[1..].join(" ");
-        let tell = TellMessage {
-            sender: sender,
-            message: message,
+        let tell = database::NewTellMessage {
+            sender: &sender,
+            receiver: &receiver,
+            time: NaiveDateTime::from_timestamp(tm.sec, 0u32),
+            message: &message,
         };
 
-        let mut tells = try_lock!(self.tells);
-        let tell_messages = tells
-            .entry(receiver)
-            .or_insert_with(|| Vec::with_capacity(3));
-        (*tell_messages).push(tell);
-
-        Ok("Got it!")
+        match try_lock!(self.tells).insert_tell(&tell) {
+            DbResponse::Success => Ok("Got it!"),
+            DbResponse::Failed(e) => Err(e.to_string()),
+        }
     }
 
     fn send_tell(&self, client: &IrcClient, receiver: &str) -> ExecutionStatus {
         let mut tells = try_lock!(self.tells);
-        if let Some(tell_messages) = tells.get_mut(receiver) {
+        if let Some(tell_messages) = tells.get_tells(receiver) {
             for tell in tell_messages {
                 if let Err(e) = client.send_notice(
                     receiver,
@@ -85,7 +82,7 @@ impl Tell {
                 );
             }
         }
-        tells.remove(receiver);
+        tells.delete_tells(receiver);
         ExecutionStatus::Done
     }
 
@@ -106,7 +103,7 @@ impl Tell {
     }
 }
 
-impl Plugin for Tell {
+impl<T: Database> Plugin for Tell<T> {
     fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
             Command::JOIN(_, _, _) | Command::PRIVMSG(_, _) => {
@@ -139,5 +136,9 @@ impl Plugin for Tell {
     }
 }
 
-#[cfg(test)]
-mod tests {}
+use std::fmt;
+impl<T: Database> fmt::Debug for Tell<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Tell {{ ... }}")
+    }
+}

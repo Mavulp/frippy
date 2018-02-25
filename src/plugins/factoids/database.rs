@@ -152,14 +152,17 @@ impl Database for Pool<ConnectionManager<MysqlConnection>> {
     }
 
     fn count_factoids(&self, name: &str) -> Result<i32, &'static str> {
+        use diesel;
+
         let conn = &*self.get().expect("Failed to get connection");
         let count: Result<i64, _> = factoids::table
             .filter(factoids::columns::name.eq(name))
             .count()
-            .first(conn);
+            .get_result(conn);
 
         match count {
             Ok(c) => Ok(c as i32),
+            Err(diesel::NotFound) => Ok(0),
             Err(e) => {
                 error!("DB Count Error: {}", e);
                 Err("Database Error")

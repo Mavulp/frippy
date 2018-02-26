@@ -1,9 +1,12 @@
 use irc::client::prelude::*;
 use irc::error::IrcError;
 
+use std::time::Duration;
+use std::sync::Mutex;
+
 use time;
 use chrono::NaiveDateTime;
-use std::sync::Mutex;
+use humantime::format_duration;
 
 use plugin::*;
 
@@ -40,13 +43,13 @@ impl<T: Database> Tell<T> {
         let sender = command.source.to_owned();
 
         if receiver == sender {
-            return Err(String::from("That's your name!"));
+            //return Err(String::from("That's your name!"));
         }
 
         if command.source != command.target {
             if let Some(users) = client.list_users(&command.target) {
                 if users.iter().any(|u| u.get_nickname() == receiver) {
-                    return Err(format!("{} is in this channel.", receiver));
+                    //return Err(format!("{} is in this channel.", receiver));
                 }
             }
         }
@@ -70,9 +73,16 @@ impl<T: Database> Tell<T> {
         let mut tells = try_lock!(self.tells);
         if let Some(tell_messages) = tells.get_tells(receiver) {
             for tell in tell_messages {
+                let now = Duration::new(time::now().to_timespec().sec as u64, 0);
+                let dur = now - Duration::new(tell.time.timestamp() as u64, 0);
+                let human_dur = format_duration(dur);
+
                 if let Err(e) = client.send_notice(
                     receiver,
-                    &format!("Tell from {}: {}", tell.sender, tell.message),
+                    &format!(
+                        "Tell from {} {} ago: {}",
+                        tell.sender, human_dur, tell.message
+                    ),
                 ) {
                     return ExecutionStatus::Err(Box::new(e));
                 }

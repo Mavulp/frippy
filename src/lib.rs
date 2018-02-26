@@ -45,6 +45,7 @@ extern crate lazy_static;
 extern crate log;
 
 extern crate chrono;
+extern crate humantime;
 extern crate irc;
 extern crate time;
 

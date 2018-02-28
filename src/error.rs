@@ -35,7 +35,7 @@ pub enum FrippyError {
 
     /// An r2d2 error
     #[fail(display = "An r2d2 error occured")]
-    R2d2,
+    R2d2(#[cause] R2d2Error),
 
     /// Reached download limit error
     #[fail(display = "Reached download limit of {} KiB", limit)]

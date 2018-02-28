@@ -4,6 +4,7 @@ use std::io::Error as IoError;
 use std::str::Utf8Error;
 use irc::error::IrcError;
 use reqwest::Error as ReqwestError;
+use r2d2::Error as R2d2Error;
 
 /// The main crate-wide error type.
 #[derive(Debug, Fail)]
@@ -31,6 +32,10 @@ pub enum FrippyError {
     /// A UTF8 error
     #[fail(display = "A UTF8 error occured")]
     Utf8(#[cause] Utf8Error),
+
+    /// An r2d2 error
+    #[fail(display = "An r2d2 error occured")]
+    R2d2,
 
     /// Reached download limit error
     #[fail(display = "Reached download limit of {} KiB", limit)]
@@ -94,5 +99,11 @@ impl From<IoError> for FrippyError {
 impl From<Utf8Error> for FrippyError {
     fn from(e: Utf8Error) -> FrippyError {
         FrippyError::Utf8(e)
+    }
+}
+
+impl From<R2d2Error> for FrippyError {
+    fn from(e: R2d2Error) -> FrippyError {
+        FrippyError::R2d2(e)
     }
 }

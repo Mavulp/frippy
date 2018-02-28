@@ -8,9 +8,7 @@ matrix:
     - rust: nightly
 
 script:
-    - cargo build --verbose
     - cargo test --verbose
-    - cargo build --verbose --features mysql
     - cargo test --verbose --features mysql
 
 cache: cargo

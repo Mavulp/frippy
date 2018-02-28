@@ -4,6 +4,7 @@ use std::io::Error as IoError;
 use std::str::Utf8Error;
 use irc::error::IrcError;
 use reqwest::Error as ReqwestError;
+#[cfg(feature = "mysql")]
 use r2d2::Error as R2d2Error;
 
 /// The main crate-wide error type.
@@ -34,6 +35,7 @@ pub enum FrippyError {
     Utf8(#[cause] Utf8Error),
 
     /// An r2d2 error
+    #[cfg(feature = "mysql")]
     #[fail(display = "An r2d2 error occured")]
     R2d2(#[cause] R2d2Error),
 
@@ -102,6 +104,7 @@ impl From<Utf8Error> for FrippyError {
     }
 }
 
+#[cfg(feature = "mysql")]
 impl From<R2d2Error> for FrippyError {
     fn from(e: R2d2Error) -> FrippyError {
         FrippyError::R2d2(e)

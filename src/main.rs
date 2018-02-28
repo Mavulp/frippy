@@ -5,6 +5,7 @@ extern crate frippy;
 extern crate glob;
 extern crate irc;
 extern crate time;
+extern crate failure;
 
 #[cfg(feature = "mysql")]
 extern crate diesel;
@@ -26,9 +27,11 @@ use log::{Level, LevelFilter, Metadata, Record};
 
 use irc::client::reactor::IrcReactor;
 use glob::glob;
+use failure::Fail;
 
 use frippy::plugins;
 use frippy::Config;
+use frippy::error::FrippyError;
 
 #[cfg(feature = "mysql")]
 embed_migrations!();
@@ -67,6 +70,18 @@ impl log::Log for Logger {
 static LOGGER: Logger = Logger;
 
 fn main() {
+    // Print any errors that caused frippy to shut down
+    if let Err(e) = run() {
+        let mut causes = e.causes();
+
+        error!("{}", causes.next().unwrap());
+        for cause in causes {
+            error!("caused by: {}", cause);
+        }
+    };
+}
+
+fn run() -> Result<(), FrippyError> {
     log::set_max_level(if cfg!(debug_assertions) {
         LevelFilter::Debug
     } else {
@@ -92,12 +107,11 @@ fn main() {
 
     // Without configs the bot would just idle
     if configs.is_empty() {
-        error!("No config file found");
-        return;
+        return Err(FrippyError::MissingConfig);
     }
 
     // Create an event loop to run the connections on.
-    let mut reactor = IrcReactor::new().unwrap();
+    let mut reactor = IrcReactor::new()?;
 
     // Open a connection and add work for each config
     for config in configs {
@@ -127,8 +141,7 @@ fn main() {
 
                 let manager = ConnectionManager::<MysqlConnection>::new(url.clone());
                 match r2d2::Pool::builder().build(manager) {
-                    Ok(pool) => match embedded_migrations::run(&*pool.get()
-                        .expect("Failed to get connection"))
+                    Ok(pool) => match embedded_migrations::run(&*pool.get()?)
                     {
                         Ok(_) => {
                             let pool = Arc::new(pool);
@@ -166,10 +179,9 @@ fn main() {
             }
         }
 
-        bot.connect(&mut reactor, &config)
-            .expect("Failed to connect");
+        bot.connect(&mut reactor, &config)?;
     }
 
     // Run the bots until they throw an error - an error could be loss of connection
-    reactor.run().unwrap();
+    Ok(reactor.run()?)
 }

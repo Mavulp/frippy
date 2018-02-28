@@ -38,6 +38,8 @@ extern crate r2d2;
 extern crate r2d2_diesel;
 
 #[macro_use]
+extern crate failure;
+#[macro_use]
 extern crate frippy_derive;
 #[macro_use]
 extern crate lazy_static;
@@ -47,11 +49,13 @@ extern crate log;
 extern crate chrono;
 extern crate humantime;
 extern crate irc;
+extern crate reqwest;
 extern crate time;
 
 pub mod plugin;
 pub mod plugins;
 pub mod utils;
+pub mod error;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -60,6 +64,7 @@ use std::sync::Arc;
 
 pub use irc::client::prelude::*;
 pub use irc::error::IrcError;
+use error::FrippyError;
 
 use plugin::*;
 
@@ -142,20 +147,15 @@ impl Bot {
     /// reactor.run().unwrap();
     /// # }
     /// ```
-    pub fn connect(&self, reactor: &mut IrcReactor, config: &Config) -> Result<(), String> {
+    pub fn connect(&self, reactor: &mut IrcReactor, config: &Config) -> Result<(), FrippyError> {
         info!("Plugins loaded: {}", self.plugins);
 
-        let client = match reactor.prepare_client_and_connect(config) {
-            Ok(v) => v,
-            Err(e) => return Err(format!("Failed to connect: {}", e)),
-        };
+        let client = reactor.prepare_client_and_connect(config)?;
 
         info!("Connected to IRC server");
 
-        match client.identify() {
-            Ok(_) => info!("Identified"),
-            Err(e) => return Err(format!("Failed to identify: {}", e)),
-        };
+        client.identify()?;
+        info!("Identified");
 
         // TODO Verify if we actually need to clone plugins twice
         let plugins = self.plugins.clone();
@@ -253,10 +253,10 @@ impl ThreadedPlugins {
         &mut self,
         server: &IrcClient,
         mut command: PluginCommand,
-    ) -> Result<(), IrcError> {
+    ) -> Result<(), FrippyError> {
         if !command.tokens.iter().any(|s| !s.is_empty()) {
             let help = format!("Use \"{} help\" to get help", server.current_nickname());
-            return server.send_notice(&command.source, &help);
+            server.send_notice(&command.source, &help)?;
         }
 
         // Check if the command is for this plugin
@@ -284,7 +284,7 @@ impl ThreadedPlugins {
                 command.tokens[0]
             );
 
-            server.send_notice(&command.source, &help)
+            Ok(server.send_notice(&command.source, &help)?)
         }
     }
 }
@@ -293,7 +293,7 @@ impl fmt::Display for ThreadedPlugins {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let plugin_names = self.plugins
             .iter()
-            .map(|(_, p)| p.name().to_string())
+            .map(|(_, p)| p.name().to_owned())
             .collect::<Vec<String>>();
         write!(f, "{}", plugin_names.join(", "))
     }

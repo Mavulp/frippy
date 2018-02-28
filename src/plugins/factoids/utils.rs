@@ -10,8 +10,8 @@ use self::LuaError::RuntimeError;
 
 pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
     match utils::download(1024, &url) {
-        Some(v) => Ok(v),
-        None => Err(RuntimeError(format!("Failed to download {}", url))),
+        Ok(v) => Ok(v),
+        Err(e) => Err(RuntimeError(format!("Failed to download {} - {}", url, e.to_string()))),
     }
 }
 

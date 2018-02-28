@@ -11,6 +11,9 @@ use self::select::predicate::Name;
 
 use plugin::*;
 use utils;
+use error::FrippyError;
+use error::UrlError;
+use failure::Fail;
 
 lazy_static! {
     static ref RE: Regex = Regex::new(r"(^|\s)(https?://\S+)").unwrap();
@@ -28,14 +31,10 @@ impl Url {
     }
 
     fn grep_url(&self, msg: &str) -> Option<String> {
-        match RE.captures(msg) {
-            Some(captures) => {
-                debug!("Url captures: {:?}", captures);
+        let captures = RE.captures(msg)?;
+        debug!("Url captures: {:?}", captures);
 
-                Some(captures.get(2)?.as_str().to_string())
-            }
-            None => None,
-        }
+        Some(captures.get(2)?.as_str().to_owned())
     }
 
     fn get_title(&self, body: &str) -> Option<String> {
@@ -49,21 +48,11 @@ impl Url {
         Some(title_text)
     }
 
-    fn url(&self, text: &str) -> Result<String, &str> {
-        let url = match self.grep_url(text) {
-            Some(url) => url,
-            None => return Err("No Url was found."),
-        };
+    fn url(&self, text: &str) -> Result<String, FrippyError> {
+        let url =  self.grep_url(text).ok_or(UrlError::MissingUrl)?;
+        let body = utils::download(self.max_kib, &url)?;
 
-        match utils::download(self.max_kib, &url) {
-            Some(body) => {
-                match self.get_title(&body) {
-                    Some(title) => Ok(title),
-                    None => Err("No title was found.")
-                }
-            }
-            None => Err("Failed to download document."),
-        }
+        Ok(self.get_title(&body).ok_or(UrlError::MissingTitle)?)
     }
 }
 
@@ -86,7 +75,7 @@ impl Plugin for Url {
                 Err(e) => {
                     error!("Url plugin error: {}", e);
                     Ok(())
-                },
+                }
             },
             _ => Ok(()),
         }
@@ -100,7 +89,7 @@ impl Plugin for Url {
     }
 
     fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
-        self.url(&command.tokens[0]).map_err(String::from)
+        self.url(&command.tokens[0]).map_err(|e| e.cause().unwrap().to_string())
     }
 }
 

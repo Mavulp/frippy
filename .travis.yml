@@ -7,6 +7,14 @@ matrix:
   allow_failures:
     - rust: nightly
 
+script:
+    - cargo build --verbose
+    - cargo test --verbose
+    - cargo build --verbose --features mysql
+    - cargo test --verbose --features mysql
+
+cache: cargo
+
 notifications:
   email: false
   irc:

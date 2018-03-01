@@ -9,7 +9,7 @@ use super::rlua::prelude::*;
 use self::LuaError::RuntimeError;
 
 pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
-    match utils::download(1024, &url) {
+    match utils::download(&url, Some(1024)) {
         Ok(v) => Ok(v),
         Err(e) => Err(RuntimeError(format!("Failed to download {} - {}", url, e.to_string()))),
     }

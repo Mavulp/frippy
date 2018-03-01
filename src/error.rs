@@ -1,7 +1,6 @@
 //! Errors for `frippy` crate using `failure`.
 
 use std::io::Error as IoError;
-use std::str::Utf8Error;
 use irc::error::IrcError;
 use reqwest::Error as ReqwestError;
 #[cfg(feature = "mysql")]
@@ -29,10 +28,6 @@ pub enum FrippyError {
     /// An I/O error
     #[fail(display = "An I/O error occured")]
     Io(#[cause] IoError),
-
-    /// A decoding error
-    #[fail(display = "Failed to decode bytes")]
-    Decoding(#[cause] Utf8Error),
 
     /// An r2d2 error
     #[cfg(feature = "mysql")]
@@ -95,12 +90,6 @@ impl From<ReqwestError> for FrippyError {
 impl From<IoError> for FrippyError {
     fn from(e: IoError) -> FrippyError {
         FrippyError::Io(e)
-    }
-}
-
-impl From<Utf8Error> for FrippyError {
-    fn from(e: Utf8Error) -> FrippyError {
-        FrippyError::Decoding(e)
     }
 }
 

@@ -83,7 +83,7 @@ impl<T: Database> Factoids<T> {
 
         let name = command.tokens.remove(0);
         let url = &command.tokens[0];
-        let content = ::utils::download(1024, url)?;
+        let content = ::utils::download(url, Some(1024))?;
 
         Ok(self.create_factoid(&name, &content, &command.source)?)
     }

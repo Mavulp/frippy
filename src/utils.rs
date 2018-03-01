@@ -4,9 +4,14 @@ use std::io::{self, Read};
 use reqwest::Client;
 use reqwest::header::Connection;
 
+use failure::Fail;
 use error::FrippyError;
 
-pub fn download(max_kib: usize, url: &str) -> Result<String, FrippyError> {
+/// Downloads the file and converts it to a String.
+/// Any invalid bytes are converted to a replacement character.
+///
+/// The error indicated either a failed download or that the DownloadLimit was reached
+pub fn download(url: &str, max_kib: Option<usize>) -> Result<String, FrippyError> {
     let mut response = Client::new().get(url).header(Connection::close()).send()?;
 
     // 100 kibibyte buffer
@@ -27,11 +32,22 @@ pub fn download(max_kib: usize, url: &str) -> Result<String, FrippyError> {
         written += len;
 
         // Check if the file is too large to download
-        if written > max_kib * 1024 {
-            Err(FrippyError::DownloadLimit { limit: max_kib })?;
+        if let Some(max_kib) = max_kib {
+            if written > max_kib * 1024 {
+                Err(FrippyError::DownloadLimit { limit: max_kib })?;
+            }
         }
     }
-    let body = str::from_utf8(&bytes)?;
 
-    Ok(body.to_string())
+    Ok(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+
+pub fn log_error(e: FrippyError) {
+    let mut causes = e.causes();
+
+    error!("{}", causes.next().unwrap());
+    for cause in causes {
+        error!("caused by: {}", cause);
+    }
 }

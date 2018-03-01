@@ -50,7 +50,7 @@ impl Url {
 
     fn url(&self, text: &str) -> Result<String, FrippyError> {
         let url =  self.grep_url(text).ok_or(UrlError::MissingUrl)?;
-        let body = utils::download(self.max_kib, &url)?;
+        let body = utils::download(&url, Some(self.max_kib))?;
 
         Ok(self.get_title(&body).ok_or(UrlError::MissingTitle)?)
     }
@@ -72,10 +72,7 @@ impl Plugin for Url {
         match message.command {
             Command::PRIVMSG(_, ref content) => match self.url(content) {
                 Ok(title) => client.send_privmsg(message.response_target().unwrap(), &title),
-                Err(e) => {
-                    error!("Url plugin error: {}", e);
-                    Ok(())
-                }
+                Err(e) => Ok(utils::log_error(e)),
             },
             _ => Ok(()),
         }

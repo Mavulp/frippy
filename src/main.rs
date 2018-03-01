@@ -5,7 +5,6 @@ extern crate frippy;
 extern crate glob;
 extern crate irc;
 extern crate time;
-extern crate failure;
 
 #[cfg(feature = "mysql")]
 extern crate diesel;
@@ -27,7 +26,6 @@ use log::{Level, LevelFilter, Metadata, Record};
 
 use irc::client::reactor::IrcReactor;
 use glob::glob;
-use failure::Fail;
 
 use frippy::plugins;
 use frippy::Config;
@@ -72,12 +70,7 @@ static LOGGER: Logger = Logger;
 fn main() {
     // Print any errors that caused frippy to shut down
     if let Err(e) = run() {
-        let mut causes = e.causes();
-
-        error!("{}", causes.next().unwrap());
-        for cause in causes {
-            error!("caused by: {}", cause);
-        }
+        frippy::utils::log_error(e);
     };
 }
 

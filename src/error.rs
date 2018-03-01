@@ -30,9 +30,9 @@ pub enum FrippyError {
     #[fail(display = "An I/O error occured")]
     Io(#[cause] IoError),
 
-    /// A UTF8 error
-    #[fail(display = "A UTF8 error occured")]
-    Utf8(#[cause] Utf8Error),
+    /// A decoding error
+    #[fail(display = "Failed to decode bytes")]
+    Decoding(#[cause] Utf8Error),
 
     /// An r2d2 error
     #[cfg(feature = "mysql")]
@@ -100,7 +100,7 @@ impl From<IoError> for FrippyError {
 
 impl From<Utf8Error> for FrippyError {
     fn from(e: Utf8Error) -> FrippyError {
-        FrippyError::Utf8(e)
+        FrippyError::Decoding(e)
     }
 }
 

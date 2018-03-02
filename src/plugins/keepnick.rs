@@ -1,7 +1,10 @@
 use irc::client::prelude::*;
-use irc::error::IrcError;
 
 use plugin::*;
+
+use error::FrippyError;
+use error::ErrorKind as FrippyErrorKind;
+use failure::ResultExt;
 
 #[derive(PluginName, Default, Debug)]
 pub struct KeepNick;
@@ -25,9 +28,12 @@ impl KeepNick {
 
         if client_nick != cfg_nick {
             info!("Trying to switch nick from {} to {}", client_nick, cfg_nick);
-            match client.send(Command::NICK(cfg_nick)) {
+            match client
+                .send(Command::NICK(cfg_nick))
+                .context(FrippyErrorKind::Connection)
+            {
                 Ok(_) => ExecutionStatus::Done,
-                Err(e) => ExecutionStatus::Err(Box::new(e)),
+                Err(e) => ExecutionStatus::Err(e.into()),
             }
         } else {
             ExecutionStatus::Done
@@ -45,21 +51,20 @@ impl Plugin for KeepNick {
         }
     }
 
-    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), FrippyError> {
         panic!("Tell should not use threading")
     }
 
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
-        client.send_notice(
-            &command.source,
-            "This Plugin does not implement any commands.",
-        )
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
+        Ok(client
+            .send_notice(
+                &command.source,
+                "This Plugin does not implement any commands.",
+            )
+            .context(FrippyErrorKind::Connection)?)
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
         Err(String::from("This Plugin does not implement any commands."))
     }
 }
-
-#[cfg(test)]
-mod tests {}

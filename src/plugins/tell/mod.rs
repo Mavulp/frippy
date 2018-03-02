@@ -1,5 +1,4 @@
 use irc::client::prelude::*;
-use irc::error::IrcError;
 
 use std::time::Duration;
 use std::sync::Mutex;
@@ -9,6 +8,11 @@ use chrono::NaiveDateTime;
 use humantime::format_duration;
 
 use plugin::*;
+
+use error::FrippyError;
+use error::ErrorKind as FrippyErrorKind;
+use failure::Fail;
+use failure::ResultExt;
 
 pub mod database;
 use self::database::{Database, DbResponse};
@@ -84,7 +88,7 @@ impl<T: Database> Tell<T> {
                         tell.sender, human_dur, tell.message
                     ),
                 ) {
-                    return ExecutionStatus::Err(Box::new(e));
+                    return ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into());
                 }
                 debug!(
                     "Sent {:?} from {:?} to {:?}",
@@ -123,22 +127,30 @@ impl<T: Database> Plugin for Tell<T> {
         }
     }
 
-    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), FrippyError> {
         panic!("Tell should not use threading")
     }
 
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
-            return client.send_notice(&command.source, &self.invalid_command(client));
+            return Ok(client
+                .send_notice(&command.source, &self.invalid_command(client))
+                .context(FrippyErrorKind::Connection)?);
         }
 
-        match command.tokens[0].as_ref() {
-            "help" => client.send_notice(&command.source, &self.help(client)),
+        Ok(match command.tokens[0].as_ref() {
+            "help" => client
+                .send_notice(&command.source, &self.help(client))
+                .context(FrippyErrorKind::Connection),
             _ => match self.tell_command(client, &command) {
-                Ok(msg) => client.send_notice(&command.source, msg),
-                Err(msg) => client.send_notice(&command.source, &msg),
+                Ok(msg) => client
+                    .send_notice(&command.source, msg)
+                    .context(FrippyErrorKind::Connection),
+                Err(msg) => client
+                    .send_notice(&command.source, &msg)
+                    .context(FrippyErrorKind::Connection),
             },
-        }
+        }?)
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {

@@ -2,7 +2,6 @@ extern crate regex;
 extern crate select;
 
 use irc::client::prelude::*;
-use irc::error::IrcError;
 
 use self::regex::Regex;
 
@@ -11,9 +10,12 @@ use self::select::predicate::Name;
 
 use plugin::*;
 use utils;
+
+use self::error::*;
 use error::FrippyError;
-use error::UrlError;
+use error::ErrorKind as FrippyErrorKind;
 use failure::Fail;
+use failure::ResultExt;
 
 lazy_static! {
     static ref RE: Regex = Regex::new(r"(^|\s)(https?://\S+)").unwrap();
@@ -48,11 +50,11 @@ impl Url {
         Some(title_text)
     }
 
-    fn url(&self, text: &str) -> Result<String, FrippyError> {
-        let url =  self.grep_url(text).ok_or(UrlError::MissingUrl)?;
-        let body = utils::download(&url, Some(self.max_kib))?;
+    fn url(&self, text: &str) -> Result<String, UrlError> {
+        let url = self.grep_url(text).ok_or(ErrorKind::MissingUrl)?;
+        let body = utils::download(&url, Some(self.max_kib)).context(ErrorKind::Download)?;
 
-        Ok(self.get_title(&body).ok_or(UrlError::MissingTitle)?)
+        Ok(self.get_title(&body).ok_or(ErrorKind::MissingTitle)?)
     }
 }
 
@@ -68,27 +70,48 @@ impl Plugin for Url {
         }
     }
 
-    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), IrcError> {
-        match message.command {
+    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError> {
+        Ok(match message.command {
             Command::PRIVMSG(_, ref content) => match self.url(content) {
-                Ok(title) => client.send_privmsg(message.response_target().unwrap(), &title),
-                Err(e) => Ok(utils::log_error(e)),
+                Ok(title) => client
+                    .send_privmsg(message.response_target().unwrap(), &title)
+                    .context(FrippyErrorKind::Connection)?,
+                Err(e) => Err(e).context(FrippyErrorKind::Url)?,
             },
-            _ => Ok(()),
-        }
+            _ => (),
+        })
     }
 
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
-        client.send_notice(
-            &command.source,
-            "This Plugin does not implement any commands.",
-        )
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
+        Ok(client
+            .send_notice(
+                &command.source,
+                "This Plugin does not implement any commands.",
+            )
+            .context(FrippyErrorKind::Connection)?)
     }
 
     fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
-        self.url(&command.tokens[0]).map_err(|e| e.cause().unwrap().to_string())
+        self.url(&command.tokens[0])
+            .map_err(|e| e.cause().unwrap().to_string())
     }
 }
 
-#[cfg(test)]
-mod tests {}
+pub mod error {
+    /// A URL plugin error
+    #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
+    #[error = "UrlError"]
+    pub enum ErrorKind {
+        /// A download error
+        #[fail(display = "A download error occured")]
+        Download,
+
+        /// Missing URL error
+        #[fail(display = "No URL was found")]
+        MissingUrl,
+
+        /// Missing title error
+        #[fail(display = "No title was found")]
+        MissingTitle,
+    }
+}

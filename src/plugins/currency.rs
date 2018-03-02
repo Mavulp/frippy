@@ -6,13 +6,16 @@ use std::io::Read;
 use std::num::ParseFloatError;
 
 use irc::client::prelude::*;
-use irc::error::IrcError;
 
 use self::reqwest::Client;
 use self::reqwest::header::Connection;
 use self::serde_json::Value;
 
 use plugin::*;
+
+use error::FrippyError;
+use error::ErrorKind as FrippyErrorKind;
+use failure::ResultExt;
 
 #[derive(PluginName, Default, Debug)]
 pub struct Currency;
@@ -124,20 +127,28 @@ impl Plugin for Currency {
         ExecutionStatus::Done
     }
 
-    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), FrippyError> {
         panic!("Currency does not implement the execute function!")
     }
 
-    fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
-            return client.send_notice(&command.source, &self.invalid_command(client));
+            return Ok(client
+                .send_notice(&command.source, &self.invalid_command(client))
+                .context(FrippyErrorKind::Connection)?);
         }
 
         match command.tokens[0].as_ref() {
-            "help" => client.send_notice(&command.source, &self.help(client)),
+            "help" => Ok(client
+                .send_notice(&command.source, &self.help(client))
+                .context(FrippyErrorKind::Connection)?),
             _ => match self.convert(client, &mut command) {
-                Ok(msg) => client.send_privmsg(&command.target, &msg),
-                Err(msg) => client.send_notice(&command.source, &msg),
+                Ok(msg) => Ok(client
+                    .send_privmsg(&command.target, &msg)
+                    .context(FrippyErrorKind::Connection)?),
+                Err(msg) => Ok(client
+                    .send_notice(&command.source, &msg)
+                    .context(FrippyErrorKind::Connection)?),
             },
         }
     }
@@ -153,6 +164,3 @@ impl Plugin for Currency {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {}

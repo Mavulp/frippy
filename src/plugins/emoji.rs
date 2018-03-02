@@ -3,9 +3,13 @@ extern crate unicode_names;
 use std::fmt;
 
 use irc::client::prelude::*;
-use irc::error::IrcError;
 
 use plugin::*;
+
+use error::FrippyError;
+use error::ErrorKind as FrippyErrorKind;
+use failure::Fail;
+use failure::ResultExt;
 
 struct EmojiHandle {
     symbol: char,
@@ -100,21 +104,23 @@ impl Plugin for Emoji {
                 .send_privmsg(message.response_target().unwrap(), &self.emoji(content))
             {
                 Ok(_) => ExecutionStatus::Done,
-                Err(e) => ExecutionStatus::Err(Box::new(e)),
+                Err(e) => ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into()),
             },
             _ => ExecutionStatus::Done,
         }
     }
 
-    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), IrcError> {
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), FrippyError> {
         panic!("Emoji should not use threading")
     }
 
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), IrcError> {
-        client.send_notice(
-            &command.source,
-            "This Plugin does not implement any commands.",
-        )
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
+        Ok(client
+            .send_notice(
+                &command.source,
+                "This Plugin does not implement any commands.",
+            )
+            .context(FrippyErrorKind::Connection)?)
     }
 
     fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
@@ -126,6 +132,3 @@ impl Plugin for Emoji {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {}

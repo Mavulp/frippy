@@ -5,20 +5,21 @@ use std::str::FromStr;
 use std::sync::Mutex;
 use self::rlua::prelude::*;
 use irc::client::prelude::*;
-use irc::error::IrcError;
-use error::FrippyError;
-use error::PluginError;
-use failure::Fail;
 
 use time;
 use chrono::NaiveDateTime;
 
 use plugin::*;
 pub mod database;
-use self::database::{Database, DbResponse};
+use self::database::Database;
 
 mod utils;
 use self::utils::*;
+
+use failure::ResultExt;
+use error::ErrorKind as FrippyErrorKind;
+use error::FrippyError;
+use self::error::*;
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
@@ -43,8 +44,13 @@ impl<T: Database> Factoids<T> {
         }
     }
 
-    fn create_factoid(&self, name: &str, content: &str, author: &str) -> Result<&str, FrippyError> {
-        let count = try_lock!(self.factoids).count_factoids(name).map_err(|e| PluginError::Factoids { error: e.to_owned() })?;
+    fn create_factoid(
+        &self,
+        name: &str,
+        content: &str,
+        author: &str,
+    ) -> Result<&str, FactoidsError> {
+        let count = try_lock!(self.factoids).count_factoids(name)?;
         let tm = time::now().to_timespec();
 
         let factoid = database::NewFactoid {
@@ -55,15 +61,14 @@ impl<T: Database> Factoids<T> {
             created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
         };
 
-        match try_lock!(self.factoids).insert_factoid(&factoid) {
-            DbResponse::Success => Ok("Successfully added"),
-            DbResponse::Failed(e) => Err(PluginError::Factoids { error: e.to_owned() })?,
-        }
+        Ok(try_lock!(self.factoids)
+            .insert_factoid(&factoid)
+            .map(|()| "Successfully added!")?)
     }
 
-    fn add(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<&str, FrippyError> {
+    fn add(&self, command: &mut PluginCommand) -> Result<&str, FactoidsError> {
         if command.tokens.len() < 2 {
-            return Ok(self.invalid_command(client, command).map(|()| "")?);
+            Err(ErrorKind::InvalidCommand)?;
         }
 
         let name = command.tokens.remove(0);
@@ -72,45 +77,41 @@ impl<T: Database> Factoids<T> {
         Ok(self.create_factoid(&name, &content, &command.source)?)
     }
 
-    fn add_from_url(
-        &self,
-        client: &IrcClient,
-        command: &mut PluginCommand,
-    ) -> Result<&str, FrippyError> {
+    fn add_from_url(&self, command: &mut PluginCommand) -> Result<&str, FactoidsError> {
         if command.tokens.len() < 2 {
-            return Ok(self.invalid_command(client, command).map(|()| "")?);
+            Err(ErrorKind::InvalidCommand)?;
         }
 
         let name = command.tokens.remove(0);
         let url = &command.tokens[0];
-        let content = ::utils::download(url, Some(1024))?;
+        let content = ::utils::download(url, Some(1024)).context(ErrorKind::Download)?;
 
         Ok(self.create_factoid(&name, &content, &command.source)?)
     }
 
-    fn remove(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<&str, FrippyError> {
+    fn remove(&self, command: &mut PluginCommand) -> Result<&str, FactoidsError> {
         if command.tokens.len() < 1 {
-            return Ok(self.invalid_command(client, command).map(|()| "")?);
+            Err(ErrorKind::InvalidCommand)?;
         }
 
         let name = command.tokens.remove(0);
-        let count = try_lock!(self.factoids).count_factoids(&name).map_err(|e| PluginError::Factoids { error: e.to_owned() } )?;
+        let count = try_lock!(self.factoids).count_factoids(&name)?;
 
         match try_lock!(self.factoids).delete_factoid(&name, count - 1) {
-            DbResponse::Success => Ok("Successfully removed"),
-            DbResponse::Failed(e) => Err(PluginError::Factoids { error: e.to_owned() })?,
+            Ok(()) => Ok("Successfully removed"),
+            Err(e) => Err(e)?,
         }
     }
 
-    fn get(&self, client: &IrcClient, command: &PluginCommand) -> Result<String, FrippyError> {
+    fn get(&self, command: &PluginCommand) -> Result<String, FactoidsError> {
         let (name, idx) = match command.tokens.len() {
-            0 => return Ok(self.invalid_command(client, command).map(|()| String::new())?),
+            0 => Err(ErrorKind::InvalidCommand)?,
             1 => {
                 let name = &command.tokens[0];
-                let count = try_lock!(self.factoids).count_factoids(name).map_err(|e| PluginError::Factoids { error: e.to_owned() } )?;
+                let count = try_lock!(self.factoids).count_factoids(name)?;
 
                 if count < 1 {
-                    Err(PluginError::Factoids { error: format!("{} does not exist", name) })?;
+                    Err(ErrorKind::NotFound)?;
                 }
 
                 (name, count - 1)
@@ -119,61 +120,55 @@ impl<T: Database> Factoids<T> {
                 let name = &command.tokens[0];
                 let idx = match i32::from_str(&command.tokens[1]) {
                     Ok(i) => i,
-                    Err(_) => Err(PluginError::Factoids { error: String::from("Invalid index") })?,
+                    Err(_) => Err(ErrorKind::InvalidCommand)?,
                 };
 
                 (name, idx)
             }
         };
 
-        let factoid = match try_lock!(self.factoids).get_factoid(name, idx) {
-            Some(v) => v,
-            None => Err(PluginError::Factoids { error: format!("{}~{} does not exist", name, idx) })?,
-        };
+        let factoid = try_lock!(self.factoids)
+            .get_factoid(name, idx)
+            .context(ErrorKind::NotFound)?;
 
         let message = factoid.content.replace("\n", "|").replace("\r", "");
 
         Ok(format!("{}: {}", factoid.name, message))
     }
 
-    fn info(&self, client: &IrcClient, command: &PluginCommand) -> Result<String, FrippyError> {
+    fn info(&self, command: &PluginCommand) -> Result<String, FactoidsError> {
         match command.tokens.len() {
-            0 => Ok(self.invalid_command(client, command).map(|()| String::new())?),
+            0 => Err(ErrorKind::InvalidCommand)?,
             1 => {
                 let name = &command.tokens[0];
-                let count = try_lock!(self.factoids).count_factoids(name).map_err(|e| PluginError::Factoids { error: e.to_owned() } )?;
+                let count = try_lock!(self.factoids).count_factoids(name)?;
 
                 Ok(match count {
-                    0 => Err(PluginError::Factoids { error: format!("{} does not exist", name) })?,
+                    0 => Err(ErrorKind::NotFound)?,
                     1 => format!("There is 1 version of {}", name),
                     _ => format!("There are {} versions of {}", count, name),
                 })
             }
             _ => {
                 let name = &command.tokens[0];
-                let idx = i32::from_str(&command.tokens[1]).map_err(|_| PluginError::Factoids { error: String::from("Invalid index") })?;
+                let idx = i32::from_str(&command.tokens[1]).context(ErrorKind::InvalidIndex)?;
+                let factoid = try_lock!(self.factoids).get_factoid(name, idx)?;
 
-                let factoid = match try_lock!(self.factoids).get_factoid(name, idx) {
-                    Some(v) => v,
-                    None => return Ok(format!("{}~{} does not exist", name, idx)),
-                };
-
-                Ok(format!("{}: Added by {} at {} UTC", name, factoid.author, factoid.created))
+                Ok(format!(
+                    "{}: Added by {} at {} UTC",
+                    name, factoid.author, factoid.created
+                ))
             }
         }
     }
 
-    fn exec(
-        &self,
-        client: &IrcClient,
-        mut command: PluginCommand,
-    ) -> Result<String, FrippyError> {
+    fn exec(&self, mut command: PluginCommand) -> Result<String, FactoidsError> {
         if command.tokens.len() < 1 {
-            Ok(self.invalid_command(client, &command).map(|()| String::new())?)
+            Err(ErrorKind::InvalidIndex)?
         } else {
             let name = command.tokens.remove(0);
-            let count = try_lock!(self.factoids).count_factoids(&name).map_err(|e| PluginError::Factoids { error: e.to_owned() } )?;
-            let factoid = try_lock!(self.factoids).get_factoid(&name, count - 1).ok_or(PluginError::Factoids { error: format!("The factoid \"{}\" does not exist", name) })?;
+            let count = try_lock!(self.factoids).count_factoids(&name)?;
+            let factoid = try_lock!(self.factoids).get_factoid(&name, count - 1)?;
 
             let content = factoid.content;
             let value = if content.starts_with('>') {
@@ -225,10 +220,6 @@ impl<T: Database> Factoids<T> {
 
         Ok(output.join("|"))
     }
-
-    fn invalid_command(&self, client: &IrcClient, command: &PluginCommand) -> Result<(), IrcError> {
-        client.send_notice(&command.source, "Invalid Command")
-    }
 }
 
 impl<T: Database> Plugin for Factoids<T> {
@@ -243,7 +234,7 @@ impl<T: Database> Plugin for Factoids<T> {
         }
     }
 
-    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), IrcError> {
+    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError> {
         if let Command::PRIVMSG(_, mut content) = message.command.clone() {
             content.remove(0);
 
@@ -255,18 +246,22 @@ impl<T: Database> Plugin for Factoids<T> {
                 tokens: t,
             };
 
-            match self.exec(client, c) {
-                Ok(f) => client.send_privmsg(&message.response_target().unwrap(), &f),
-                Err(_) => Ok(()),
-            }
+            Ok(match self.exec(c) {
+                Ok(f) => client
+                    .send_privmsg(&message.response_target().unwrap(), &f)
+                    .context(FrippyErrorKind::Connection)?,
+                Err(_) => (),
+            })
         } else {
             Ok(())
         }
     }
 
-    fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), IrcError> {
+    fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
-            return self.invalid_command(client, &command);
+            return Ok(client
+                .send_notice(&command.target, "Invalid command")
+                .context(FrippyErrorKind::Connection)?);
         }
 
         let target = command.target.clone();
@@ -274,19 +269,27 @@ impl<T: Database> Plugin for Factoids<T> {
 
         let sub_command = command.tokens.remove(0);
         let result = match sub_command.as_ref() {
-            "add" => self.add(client, &mut command).map(|s| s.to_owned()),
-            "fromurl" => self.add_from_url(client, &mut command).map(|s| s.to_owned()),
-            "remove" => self.remove(client, &mut command).map(|s| s.to_owned()),
-            "get" => self.get(client, &command),
-            "info" => self.info(client, &command),
-            "exec" => self.exec(client, command),
-            _ => self.invalid_command(client, &command).map(|()| String::new()).map_err(|e| e.into()),
+            "add" => self.add(&mut command).map(|s| s.to_owned()),
+            "fromurl" => self.add_from_url(&mut command).map(|s| s.to_owned()),
+            "remove" => self.remove(&mut command).map(|s| s.to_owned()),
+            "get" => self.get(&command),
+            "info" => self.info(&command),
+            "exec" => self.exec(command),
+            _ => Err(ErrorKind::InvalidCommand.into()),
         };
 
         Ok(match result {
-            Ok(v) => client.send_privmsg(&target, &v),
-            Err(e) => client.send_notice(&source, &e.cause().unwrap().to_string()),
-        }?)
+            Ok(v) => client
+                .send_privmsg(&target, &v)
+                .context(FrippyErrorKind::Connection)?,
+            Err(e) => {
+                let message = e.to_string();
+                client
+                    .send_notice(&source, &message)
+                    .context(FrippyErrorKind::Connection)?;
+                Err(e).context(FrippyErrorKind::Factoids)?
+            }
+        })
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
@@ -299,5 +302,41 @@ impl<T: Database> Plugin for Factoids<T> {
 impl<T: Database> fmt::Debug for Factoids<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Factoids {{ ... }}")
+    }
+}
+
+pub mod error {
+    #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
+    #[error = "FactoidsError"]
+    pub enum ErrorKind {
+        /// Invalid command error
+        #[fail(display = "Invalid Command")]
+        InvalidCommand,
+
+        /// Invalid index error
+        #[fail(display = "Invalid index")]
+        InvalidIndex,
+
+        /// Download  error
+        #[fail(display = "Download failed")]
+        Download,
+
+        /// Duplicate error
+        #[fail(display = "Entry already exists")]
+        Duplicate,
+
+        /// Not found error
+        #[fail(display = "Factoid was not found")]
+        NotFound,
+
+        /// MySQL error
+        #[cfg(feature = "mysql")]
+        #[fail(display = "Failed to execute MySQL Query")]
+        MysqlError,
+
+        /// No connection error
+        #[cfg(feature = "mysql")]
+        #[fail(display = "No connection to the database")]
+        NoConnection,
     }
 }

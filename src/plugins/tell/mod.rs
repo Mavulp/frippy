@@ -43,13 +43,13 @@ impl<T: Database> Tell<T> {
         let sender = command.source.to_owned();
 
         if receiver == sender {
-            //return Err(String::from("That's your name!"));
+            return Err(String::from("That's your name!"));
         }
 
         if command.source != command.target {
             if let Some(users) = client.list_users(&command.target) {
                 if users.iter().any(|u| u.get_nickname() == receiver) {
-                    //return Err(format!("{} is in this channel.", receiver));
+                    return Err(format!("{} is in this channel.", receiver));
                 }
             }
         }

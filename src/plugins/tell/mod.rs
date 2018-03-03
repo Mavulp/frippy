@@ -57,7 +57,7 @@ impl<T: Database> Tell<T> {
                         .iter()
                         .any(|u| u.get_nickname().eq_ignore_ascii_case(&receiver))
                     {
-                        return Err(format!("{} is online in another channel.", receiver));
+                        return Err(format!("{} is currently online.", receiver));
                     }
                 }
             }

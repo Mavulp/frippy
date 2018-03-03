@@ -45,7 +45,7 @@ pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
 /// #[derive(PluginName)]
 /// struct Foo;
 /// ```
-pub trait PluginName: Send + Sync + fmt::Debug {
+pub trait PluginName {
     /// Returns the name of the `Plugin`.
     fn name(&self) -> &str;
 }

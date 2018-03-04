@@ -16,9 +16,9 @@
 //! let mut reactor = IrcReactor::new().unwrap();
 //! let mut bot = Bot::new();
 //!
-//! bot.add_plugin(plugins::Help::new());
-//! bot.add_plugin(plugins::Emoji::new());
-//! bot.add_plugin(plugins::Currency::new());
+//! bot.add_plugin(plugins::help::Help::new());
+//! bot.add_plugin(plugins::emoji::Emoji::new());
+//! bot.add_plugin(plugins::currency::Currency::new());
 //!
 //! bot.connect(&mut reactor, &config).unwrap();
 //! reactor.run().unwrap();
@@ -101,7 +101,7 @@ impl Bot {
     /// use frippy::{plugins, Bot};
     ///
     /// let mut bot = frippy::Bot::new();
-    /// bot.add_plugin(plugins::Help::new());
+    /// bot.add_plugin(plugins::help::Help::new());
     /// ```
     pub fn add_plugin<T: Plugin + 'static>(&mut self, plugin: T) {
         self.plugins.add(plugin);
@@ -116,7 +116,7 @@ impl Bot {
     /// use frippy::{plugins, Bot};
     ///
     /// let mut bot = frippy::Bot::new();
-    /// bot.add_plugin(plugins::Help::new());
+    /// bot.add_plugin(plugins::help::Help::new());
     /// bot.remove_plugin("Help");
     /// ```
     pub fn remove_plugin(&mut self, name: &str) -> Option<()> {

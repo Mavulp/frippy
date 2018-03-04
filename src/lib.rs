@@ -64,7 +64,8 @@ use std::sync::Arc;
 
 pub use irc::client::prelude::*;
 pub use irc::error::IrcError;
-use error::FrippyError;
+use error::*;
+use failure::ResultExt;
 
 use plugin::*;
 
@@ -150,11 +151,13 @@ impl Bot {
     pub fn connect(&self, reactor: &mut IrcReactor, config: &Config) -> Result<(), FrippyError> {
         info!("Plugins loaded: {}", self.plugins);
 
-        let client = reactor.prepare_client_and_connect(config)?;
+        let client = reactor
+            .prepare_client_and_connect(config)
+            .context(ErrorKind::Connection)?;
 
         info!("Connected to IRC server");
 
-        client.identify()?;
+        client.identify().context(ErrorKind::Connection)?;
         info!("Identified");
 
         // TODO Verify if we actually need to clone plugins twice
@@ -169,25 +172,25 @@ impl Bot {
 }
 
 fn process_msg(
-    server: &IrcClient,
+    client: &IrcClient,
     mut plugins: ThreadedPlugins,
     message: Message,
 ) -> Result<(), IrcError> {
     // Log any channels we join
     if let Command::JOIN(ref channel, _, _) = message.command {
-        if message.source_nickname().unwrap() == server.current_nickname() {
+        if message.source_nickname().unwrap() == client.current_nickname() {
             info!("Joined {}", channel);
         }
     }
 
     // Check for possible command and save the result for later
-    let command = PluginCommand::from(&server.current_nickname().to_lowercase(), &message);
+    let command = PluginCommand::from(&client.current_nickname().to_lowercase(), &message);
 
-    plugins.execute_plugins(server, message);
+    plugins.execute_plugins(client, message);
 
     // If the message contained a command, handle it
     if let Some(command) = command {
-        if let Err(e) = plugins.handle_command(server, command) {
+        if let Err(e) = plugins.handle_command(client, command) {
             error!("Failed to handle command: {}", e);
         }
     }
@@ -218,12 +221,12 @@ impl ThreadedPlugins {
         self.plugins.remove(&name.to_lowercase()).map(|_| ())
     }
 
-    pub fn execute_plugins(&mut self, server: &IrcClient, message: Message) {
+    pub fn execute_plugins(&mut self, client: &IrcClient, message: Message) {
         let message = Arc::new(message);
 
         for (name, plugin) in self.plugins.clone() {
             // Send the message to the plugin if the plugin needs it
-            match plugin.execute(server, &message) {
+            match plugin.execute(client, &message) {
                 ExecutionStatus::Done => (),
                 ExecutionStatus::Err(e) => error!("Error in {} - {}", name, e),
                 ExecutionStatus::RequiresThread => {
@@ -233,15 +236,15 @@ impl ThreadedPlugins {
                         message.to_string().replace("\r\n", "")
                     );
 
-                    // Clone everything before the move - the server uses an Arc internally too
+                    // Clone everything before the move - the client uses an Arc internally too
                     let plugin = Arc::clone(&plugin);
                     let message = Arc::clone(&message);
-                    let server = server.clone();
+                    let client = client.clone();
 
                     // Execute the plugin in another thread
                     spawn(move || {
-                        if let Err(e) = plugin.execute_threaded(&server, &message) {
-                            error!("Error in {} - {}", name, e);
+                        if let Err(e) = plugin.execute_threaded(&client, &message) {
+                            log_error(e);
                         };
                     });
                 }
@@ -251,12 +254,14 @@ impl ThreadedPlugins {
 
     pub fn handle_command(
         &mut self,
-        server: &IrcClient,
+        client: &IrcClient,
         mut command: PluginCommand,
     ) -> Result<(), FrippyError> {
         if !command.tokens.iter().any(|s| !s.is_empty()) {
-            let help = format!("Use \"{} help\" to get help", server.current_nickname());
-            server.send_notice(&command.source, &help)?;
+            let help = format!("Use \"{} help\" to get help", client.current_nickname());
+            client
+                .send_notice(&command.source, &help)
+                .context(ErrorKind::Connection)?;
         }
 
         // Check if the command is for this plugin
@@ -266,12 +271,12 @@ impl ThreadedPlugins {
 
             debug!("Sending command \"{:?}\" to {}", command, name);
 
-            // Clone for the move - the server uses an Arc internally
-            let server = server.clone();
+            // Clone for the move - the client uses an Arc internally
+            let client = client.clone();
             let plugin = Arc::clone(plugin);
             spawn(move || {
-                if let Err(e) = plugin.command(&server, command) {
-                    error!("Error in {} command - {}", name, e);
+                if let Err(e) = plugin.command(&client, command) {
+                    log_error(e);
                 };
             });
 
@@ -280,11 +285,13 @@ impl ThreadedPlugins {
             let help = format!(
                 "\"{} {}\" is not a command, \
                  try \"{0} help\" instead.",
-                server.current_nickname(),
+                client.current_nickname(),
                 command.tokens[0]
             );
 
-            Ok(server.send_notice(&command.source, &help)?)
+            Ok(client
+                .send_notice(&command.source, &help)
+                .context(ErrorKind::Connection)?)
         }
     }
 }
@@ -298,6 +305,3 @@ impl fmt::Display for ThreadedPlugins {
         write!(f, "{}", plugin_names.join(", "))
     }
 }
-
-#[cfg(test)]
-mod tests {}

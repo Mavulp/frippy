@@ -17,6 +17,8 @@ extern crate r2d2;
 extern crate r2d2_diesel;
 
 #[macro_use]
+extern crate failure;
+#[macro_use]
 extern crate log;
 
 #[cfg(feature = "mysql")]
@@ -27,9 +29,16 @@ use log::{Level, LevelFilter, Metadata, Record};
 use irc::client::reactor::IrcReactor;
 use glob::glob;
 
-use frippy::plugins;
+pub use frippy::plugins::help::Help;
+pub use frippy::plugins::url::Url;
+pub use frippy::plugins::emoji::Emoji;
+pub use frippy::plugins::tell::Tell;
+pub use frippy::plugins::currency::Currency;
+pub use frippy::plugins::keepnick::KeepNick;
+pub use frippy::plugins::factoids::Factoids;
+
 use frippy::Config;
-use frippy::error::FrippyError;
+use failure::Error;
 
 #[cfg(feature = "mysql")]
 embed_migrations!();
@@ -70,11 +79,14 @@ static LOGGER: Logger = Logger;
 fn main() {
     // Print any errors that caused frippy to shut down
     if let Err(e) = run() {
-        frippy::utils::log_error(e);
+        let text = e.causes()
+            .skip(1)
+            .fold(format!("{}", e), |acc, err| format!("{}: {}", acc, err));
+        error!("{}", text);
     };
 }
 
-fn run() -> Result<(), FrippyError> {
+fn run() -> Result<(), Error> {
     log::set_max_level(if cfg!(debug_assertions) {
         LevelFilter::Debug
     } else {
@@ -100,7 +112,7 @@ fn run() -> Result<(), FrippyError> {
 
     // Without configs the bot would just idle
     if configs.is_empty() {
-        return Err(FrippyError::MissingConfig);
+        bail!("No config file was found");
     }
 
     // Create an event loop to run the connections on.
@@ -119,11 +131,11 @@ fn run() -> Result<(), FrippyError> {
         }
 
         let mut bot = frippy::Bot::new();
-        bot.add_plugin(plugins::Help::new());
-        bot.add_plugin(plugins::Url::new(1024));
-        bot.add_plugin(plugins::Emoji::new());
-        bot.add_plugin(plugins::Currency::new());
-        bot.add_plugin(plugins::KeepNick::new());
+        bot.add_plugin(Help::new());
+        bot.add_plugin(Url::new(1024));
+        bot.add_plugin(Emoji::new());
+        bot.add_plugin(Currency::new());
+        bot.add_plugin(KeepNick::new());
 
         #[cfg(feature = "mysql")]
         {
@@ -134,25 +146,24 @@ fn run() -> Result<(), FrippyError> {
 
                 let manager = ConnectionManager::<MysqlConnection>::new(url.clone());
                 match r2d2::Pool::builder().build(manager) {
-                    Ok(pool) => match embedded_migrations::run(&*pool.get()?)
-                    {
+                    Ok(pool) => match embedded_migrations::run(&*pool.get()?) {
                         Ok(_) => {
                             let pool = Arc::new(pool);
-                            bot.add_plugin(plugins::Factoids::new(pool.clone()));
-                            bot.add_plugin(plugins::Tell::new(pool.clone()));
+                            bot.add_plugin(Factoids::new(pool.clone()));
+                            bot.add_plugin(Tell::new(pool.clone()));
                             info!("Connected to MySQL server")
                         }
                         Err(e) => {
-                            bot.add_plugin(plugins::Factoids::new(HashMap::new()));
-                            bot.add_plugin(plugins::Tell::new(HashMap::new()));
+                            bot.add_plugin(Factoids::new(HashMap::new()));
+                            bot.add_plugin(Tell::new(HashMap::new()));
                             error!("Failed to run migrations: {}", e);
                         }
                     },
                     Err(e) => error!("Failed to connect to database: {}", e),
                 }
             } else {
-                bot.add_plugin(plugins::Factoids::new(HashMap::new()));
-                bot.add_plugin(plugins::Tell::new(HashMap::new()));
+                bot.add_plugin(Factoids::new(HashMap::new()));
+                bot.add_plugin(Tell::new(HashMap::new()));
             }
         }
         #[cfg(not(feature = "mysql"))]
@@ -160,8 +171,8 @@ fn run() -> Result<(), FrippyError> {
             if mysql_url.is_some() {
                 error!("frippy was not built with the mysql feature")
             }
-            bot.add_plugin(plugins::Factoids::new(HashMap::new()));
-            bot.add_plugin(plugins::Tell::new(HashMap::new()));
+            bot.add_plugin(Factoids::new(HashMap::new()));
+            bot.add_plugin(Tell::new(HashMap::new()));
         }
 
         if let Some(disabled_plugins) = disabled_plugins {

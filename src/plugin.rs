@@ -2,16 +2,17 @@
 use std::fmt;
 
 use irc::client::prelude::*;
-use irc::error::IrcError;
+use error::FrippyError;
 
 /// Describes if a [`Plugin`](trait.Plugin.html) is done working on a
 /// [`Message`](../../irc/proto/message/struct.Message.html) or if another thread is required.
 #[derive(Debug)]
 pub enum ExecutionStatus {
-    /// The [`Plugin`](trait.Plugin.html) does not need to do any more work on this [`Message`](../../irc/proto/message/struct.Message.html).
+    /// The [`Plugin`](trait.Plugin.html) does not need to do any more work on this
+    /// [`Message`](../../irc/proto/message/struct.Message.html).
     Done,
     /// An error occured during the execution.
-    Err(Box<IrcError>),
+    Err(FrippyError),
     /// The execution needs to be done by [`execute_threaded()`](trait.Plugin.html#tymethod.execute_threaded).
     RequiresThread,
 }
@@ -19,15 +20,17 @@ pub enum ExecutionStatus {
 /// `Plugin` has to be implemented for any struct that should be usable
 /// as a `Plugin` in frippy.
 pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
-    /// Handles messages which are not commands or returns [`RequiresThread`](enum.ExecutionStatus.html#variant.RequiresThread)
+    /// Handles messages which are not commands or returns
+    /// [`RequiresThread`](enum.ExecutionStatus.html#variant.RequiresThread)
     /// if [`execute_threaded()`](trait.Plugin.html#tymethod.execute_threaded) should be used instead.
-    fn execute(&self, server: &IrcClient, message: &Message) -> ExecutionStatus;
+    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus;
     /// Handles messages which are not commands in a new thread.
-    fn execute_threaded(&self, server: &IrcClient, message: &Message) -> Result<(), IrcError>;
+    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError>;
     /// Handles any command directed at this plugin.
-    fn command(&self, server: &IrcClient, command: PluginCommand) -> Result<(), IrcError>;
-    /// Similar to [`command()`](trait.Plugin.html#tymethod.command) but return a String instead of sending messages directly to IRC.
-    fn evaluate(&self, server: &IrcClient, command: PluginCommand) -> Result<String, String>;
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError>;
+    /// Similar to [`command()`](trait.Plugin.html#tymethod.command) but return a String instead of
+    /// sending messages directly to IRC.
+    fn evaluate(&self, client: &IrcClient, command: PluginCommand) -> Result<String, String>;
 }
 
 /// `PluginName` is required by [`Plugin`](trait.Plugin.html).
@@ -42,7 +45,7 @@ pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
 /// #[derive(PluginName)]
 /// struct Foo;
 /// ```
-pub trait PluginName: Send + Sync + fmt::Debug {
+pub trait PluginName {
     /// Returns the name of the `Plugin`.
     fn name(&self) -> &str;
 }

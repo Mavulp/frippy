@@ -4,15 +4,19 @@ use std::io::{self, Read};
 use reqwest::Client;
 use reqwest::header::Connection;
 
-use failure::Fail;
-use error::FrippyError;
+use failure::ResultExt;
+use self::error::{DownloadError, ErrorKind};
 
 /// Downloads the file and converts it to a String.
 /// Any invalid bytes are converted to a replacement character.
 ///
 /// The error indicated either a failed download or that the DownloadLimit was reached
-pub fn download(url: &str, max_kib: Option<usize>) -> Result<String, FrippyError> {
-    let mut response = Client::new().get(url).header(Connection::close()).send()?;
+pub fn download(url: &str, max_kib: Option<usize>) -> Result<String, DownloadError> {
+    let mut response = Client::new()
+        .get(url)
+        .header(Connection::close())
+        .send()
+        .context(ErrorKind::Connection)?;
 
     // 100 kibibyte buffer
     let mut buf = [0; 100 * 1024];
@@ -25,7 +29,7 @@ pub fn download(url: &str, max_kib: Option<usize>) -> Result<String, FrippyError
             Ok(0) => break,
             Ok(len) => len,
             Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
-            Err(e) => Err(e)?,
+            Err(e) => Err(e).context(ErrorKind::Read)?,
         };
 
         bytes.extend_from_slice(&buf);
@@ -34,7 +38,7 @@ pub fn download(url: &str, max_kib: Option<usize>) -> Result<String, FrippyError
         // Check if the file is too large to download
         if let Some(max_kib) = max_kib {
             if written > max_kib * 1024 {
-                Err(FrippyError::DownloadLimit { limit: max_kib })?;
+                Err(ErrorKind::DownloadLimit)?;
             }
         }
     }
@@ -42,12 +46,20 @@ pub fn download(url: &str, max_kib: Option<usize>) -> Result<String, FrippyError
     Ok(String::from_utf8_lossy(&bytes).into_owned())
 }
 
+pub mod error {
+    #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
+    #[error = "DownloadError"]
+    pub enum ErrorKind {
+        /// Connection Error
+        #[fail(display = "A connection error has occured")]
+        Connection,
 
-pub fn log_error(e: FrippyError) {
-    let mut causes = e.causes();
+        /// Read Error
+        #[fail(display = "A read error has occured")]
+        Read,
 
-    error!("{}", causes.next().unwrap());
-    for cause in causes {
-        error!("caused by: {}", cause);
+        /// Reached download limit error
+        #[fail(display = "Reached download limit")]
+        DownloadLimit,
     }
 }

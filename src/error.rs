@@ -1,101 +1,31 @@
 //! Errors for `frippy` crate using `failure`.
 
-use std::io::Error as IoError;
-use irc::error::IrcError;
-use reqwest::Error as ReqwestError;
-#[cfg(feature = "mysql")]
-use r2d2::Error as R2d2Error;
+use failure::Fail;
+
+pub fn log_error(e: FrippyError) {
+    let text = e.causes()
+        .skip(1)
+        .fold(format!("{}", e), |acc, err| format!("{}: {}", acc, err));
+    error!("{}", text);
+}
 
 /// The main crate-wide error type.
-#[derive(Debug, Fail)]
-pub enum FrippyError {
-    /// A plugin error
-    #[fail(display = "A plugin error occured")]
-    Plugin(#[cause] PluginError),
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
+#[error = "FrippyError"]
+pub enum ErrorKind {
+    /// Connection error
+    #[fail(display = "A connection error occured")]
+    Connection,
 
-    /// An IRC error
-    #[fail(display = "An IRC error occured")]
-    Irc(#[cause] IrcError),
-
-    /// Missing config error
-    #[fail(display = "No config file was found")]
-    MissingConfig,
-
-    /// A reqwest error
-    #[fail(display = "A reqwest error occured")]
-    Reqwest(#[cause] ReqwestError),
-
-    /// An I/O error
-    #[fail(display = "An I/O error occured")]
-    Io(#[cause] IoError),
-
-    /// An r2d2 error
-    #[cfg(feature = "mysql")]
-    #[fail(display = "An r2d2 error occured")]
-    R2d2(#[cause] R2d2Error),
-
-    /// Reached download limit error
-    #[fail(display = "Reached download limit of {} KiB", limit)]
-    DownloadLimit { limit: usize },
-}
-
-/// Errors related to plugins
-#[derive(Debug, Fail)]
-pub enum PluginError {
     /// A Url error
-    #[fail(display = "A Url error occured")]
-    Url(#[cause] UrlError),
+    #[fail(display = "A Url error has occured")]
+    Url,
+
+    /// A Tell error
+    #[fail(display = "A Tell error has occured")]
+    Tell,
 
     /// A Factoids error
-    #[fail(display = "{}", error)]
-    Factoids { error: String },
-}
-
-/// A URL plugin error
-#[derive(Debug, Fail)]
-pub enum UrlError {
-    /// Missing URL error
-    #[fail(display = "No URL was found")]
-    MissingUrl,
-
-    /// Missing title error
-    #[fail(display = "No title was found")]
-    MissingTitle,
-}
-
-impl From<UrlError> for FrippyError {
-    fn from(e: UrlError) -> FrippyError {
-        FrippyError::Plugin(PluginError::Url(e))
-    }
-}
-
-impl From<PluginError> for FrippyError {
-    fn from(e: PluginError) -> FrippyError {
-        FrippyError::Plugin(e)
-    }
-}
-
-impl From<IrcError> for FrippyError {
-    fn from(e: IrcError) -> FrippyError {
-        FrippyError::Irc(e)
-    }
-}
-
-impl From<ReqwestError> for FrippyError {
-    fn from(e: ReqwestError) -> FrippyError {
-        FrippyError::Reqwest(e)
-    }
-}
-
-impl From<IoError> for FrippyError {
-    fn from(e: IoError) -> FrippyError {
-        FrippyError::Io(e)
-    }
-}
-
-#[cfg(feature = "mysql")]
-impl From<R2d2Error> for FrippyError {
-    fn from(e: R2d2Error) -> FrippyError {
-        FrippyError::R2d2(e)
-    }
+    #[fail(display = "A Factoids error has occured")]
+    Factoids,
 }

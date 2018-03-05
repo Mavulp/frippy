@@ -228,7 +228,7 @@ impl ThreadedPlugins {
             // Send the message to the plugin if the plugin needs it
             match plugin.execute(client, &message) {
                 ExecutionStatus::Done => (),
-                ExecutionStatus::Err(e) => error!("Error in {} - {}", name, e),
+                ExecutionStatus::Err(e) => log_error(e),
                 ExecutionStatus::RequiresThread => {
                     debug!(
                         "Spawning thread to execute {} with {}",

@@ -16,10 +16,10 @@ use r2d2_diesel::ConnectionManager;
 
 use chrono::NaiveDateTime;
 
-pub enum DbResponse {
-    Success,
-    Failed(&'static str),
-}
+#[cfg(feature = "mysql")]
+use failure::ResultExt;
+
+use super::error::*;
 
 #[cfg_attr(feature = "mysql", derive(Queryable))]
 #[derive(PartialEq, Clone, Debug)]
@@ -41,14 +41,14 @@ pub struct NewTellMessage<'a> {
 }
 
 pub trait Database: Send {
-    fn insert_tell(&mut self, tell: &NewTellMessage) -> DbResponse;
-    fn get_tells(&self, receiver: &str) -> Option<Vec<TellMessage>>;
-    fn delete_tells(&mut self, receiver: &str) -> DbResponse;
+    fn insert_tell(&mut self, tell: &NewTellMessage) -> Result<(), TellError>;
+    fn get_tells(&self, receiver: &str) -> Result<Vec<TellMessage>, TellError>;
+    fn delete_tells(&mut self, receiver: &str) -> Result<(), TellError>;
 }
 
 // HashMap
 impl Database for HashMap<String, Vec<TellMessage>> {
-    fn insert_tell(&mut self, tell: &NewTellMessage) -> DbResponse {
+    fn insert_tell(&mut self, tell: &NewTellMessage) -> Result<(), TellError> {
         let tell = TellMessage {
             id: 0,
             sender: tell.sender.to_string(),
@@ -62,17 +62,17 @@ impl Database for HashMap<String, Vec<TellMessage>> {
             .or_insert_with(|| Vec::with_capacity(3));
         (*tell_messages).push(tell);
 
-        DbResponse::Success
+        Ok(())
     }
 
-    fn get_tells(&self, receiver: &str) -> Option<Vec<TellMessage>> {
-        self.get(receiver).cloned()
+    fn get_tells(&self, receiver: &str) -> Result<Vec<TellMessage>, TellError> {
+        Ok(self.get(receiver).cloned().ok_or(ErrorKind::NotFound)?)
     }
 
-    fn delete_tells(&mut self, receiver: &str) -> DbResponse {
+    fn delete_tells(&mut self, receiver: &str) -> Result<(), TellError> {
         match self.remove(receiver) {
-            Some(_) => DbResponse::Success,
-            None => DbResponse::Failed("Tells not found"),
+            Some(_) => Ok(()),
+            None => Err(ErrorKind::NotFound)?,
         }
     }
 }
@@ -97,47 +97,37 @@ use self::schema::tells;
 
 #[cfg(feature = "mysql")]
 impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
-    fn insert_tell(&mut self, tell: &NewTellMessage) -> DbResponse {
+    fn insert_tell(&mut self, tell: &NewTellMessage) -> Result<(), TellError> {
         use diesel;
 
         let conn = &*self.get().expect("Failed to get connection");
-        match diesel::insert_into(tells::table).values(tell).execute(conn) {
-            Ok(_) => DbResponse::Success,
-            Err(e) => {
-                error!("DB failed to insert tell: {}", e);
-                DbResponse::Failed("Failed to save Tell")
-            }
-        }
+        diesel::insert_into(tells::table)
+            .values(tell)
+            .execute(conn)
+            .context(ErrorKind::MysqlError)?;
+
+        Ok(())
     }
 
-    fn get_tells(&self, receiver: &str) -> Option<Vec<TellMessage>> {
+    fn get_tells(&self, receiver: &str) -> Result<Vec<TellMessage>, TellError> {
         use self::tells::columns;
 
-        let conn = &*self.get().expect("Failed to get connection");
-        match tells::table
+        let conn = &*self.get().context(ErrorKind::NoConnection)?;
+        Ok(tells::table
             .filter(columns::receiver.eq(receiver))
             .order(columns::time.asc())
             .load::<TellMessage>(conn)
-        {
-            Ok(f) => Some(f),
-            Err(e) => {
-                error!("DB failed to get tells: {}", e);
-                None
-            }
-        }
+            .context(ErrorKind::MysqlError)?)
     }
 
-    fn delete_tells(&mut self, receiver: &str) -> DbResponse {
+    fn delete_tells(&mut self, receiver: &str) -> Result<(), TellError> {
         use diesel;
         use self::tells::columns;
 
-        let conn = &*self.get().expect("Failed to get connection");
-        match diesel::delete(tells::table.filter(columns::receiver.eq(receiver))).execute(conn) {
-            Ok(_) => DbResponse::Success,
-            Err(e) => {
-                error!("DB failed to delete tells: {}", e);
-                DbResponse::Failed("Failed to delete tells")
-            }
-        }
+        let conn = &*self.get().context(ErrorKind::NoConnection)?;
+        diesel::delete(tells::table.filter(columns::receiver.eq(receiver)))
+            .execute(conn)
+            .context(ErrorKind::MysqlError)?;
+        Ok(())
     }
 }

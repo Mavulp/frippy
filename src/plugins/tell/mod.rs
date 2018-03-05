@@ -9,13 +9,14 @@ use humantime::format_duration;
 
 use plugin::*;
 
-use error::FrippyError;
-use error::ErrorKind as FrippyErrorKind;
 use failure::Fail;
 use failure::ResultExt;
+use error::ErrorKind as FrippyErrorKind;
+use error::FrippyError;
+use self::error::*;
 
 pub mod database;
-use self::database::{Database, DbResponse};
+use self::database::Database;
 
 macro_rules! try_lock {
     ( $m:expr ) => {
@@ -38,16 +39,20 @@ impl<T: Database> Tell<T> {
         }
     }
 
-    fn tell_command(&self, client: &IrcClient, command: PluginCommand) -> Result<&str, String> {
+    fn tell_command(
+        &self,
+        client: &IrcClient,
+        command: PluginCommand,
+    ) -> Result<String, TellError> {
         if command.tokens.len() < 2 {
-            return Err(self.invalid_command(client));
+            return Ok(self.invalid_command(client));
         }
 
         let receiver = &command.tokens[0];
         let sender = command.source;
 
         if receiver.eq_ignore_ascii_case(&sender) {
-            return Err(String::from("That's your name!"));
+            return Ok(String::from("That's your name!"));
         }
 
         if let Some(channels) = client.list_channels() {
@@ -57,7 +62,7 @@ impl<T: Database> Tell<T> {
                         .iter()
                         .any(|u| u.get_nickname().eq_ignore_ascii_case(&receiver))
                     {
-                        return Err(format!("{} is currently online.", receiver));
+                        return Ok(format!("{} is currently online.", receiver));
                     }
                 }
             }
@@ -72,36 +77,49 @@ impl<T: Database> Tell<T> {
             message: &message,
         };
 
-        match try_lock!(self.tells).insert_tell(&tell) {
-            DbResponse::Success => Ok("Got it!"),
-            DbResponse::Failed(e) => Err(e.to_string()),
-        }
+        try_lock!(self.tells).insert_tell(&tell)?;
+
+        Ok(String::from("Got it!"))
     }
 
     fn send_tells(&self, client: &IrcClient, receiver: &str) -> ExecutionStatus {
         let mut tells = try_lock!(self.tells);
-        if let Some(tell_messages) = tells.get_tells(&receiver.to_lowercase()) {
-            for tell in tell_messages {
-                let now = Duration::new(time::now().to_timespec().sec as u64, 0);
-                let dur = now - Duration::new(tell.time.timestamp() as u64, 0);
-                let human_dur = format_duration(dur);
 
-                if let Err(e) = client.send_notice(
-                    receiver,
-                    &format!(
-                        "Tell from {} {} ago: {}",
-                        tell.sender, human_dur, tell.message
-                    ),
-                ) {
-                    return ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into());
-                }
-                debug!(
-                    "Sent {:?} from {:?} to {:?}",
-                    tell.message, tell.sender, receiver
-                );
+        let tell_messages = match tells.get_tells(&receiver.to_lowercase()) {
+            Ok(t) => t,
+            Err(e) => {
+                // This warning only occurs if frippy is built without a database
+                #[allow(unreachable_patterns)]
+                return match e.kind() {
+                    ErrorKind::NotFound => ExecutionStatus::Done,
+                    _ => ExecutionStatus::Err(e.context(FrippyErrorKind::Tell).into()),
+                };
             }
+        };
+
+        for tell in tell_messages {
+            let now = Duration::new(time::now().to_timespec().sec as u64, 0);
+            let dur = now - Duration::new(tell.time.timestamp() as u64, 0);
+            let human_dur = format_duration(dur);
+
+            if let Err(e) = client.send_notice(
+                receiver,
+                &format!(
+                    "Tell from {} {} ago: {}",
+                    tell.sender, human_dur, tell.message
+                ),
+            ) {
+                return ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into());
+            }
+            debug!(
+                "Sent {:?} from {:?} to {:?}",
+                tell.message, tell.sender, receiver
+            );
         }
-        tells.delete_tells(&receiver.to_lowercase());
+
+        if let Err(e) = tells.delete_tells(&receiver.to_lowercase()) {
+            return ExecutionStatus::Err(e.context(FrippyErrorKind::Tell).into());
+        };
 
         ExecutionStatus::Done
     }
@@ -126,7 +144,9 @@ impl<T: Database> Tell<T> {
 impl<T: Database> Plugin for Tell<T> {
     fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::JOIN(_, _, _) => self.send_tells(client, message.source_nickname().unwrap()),
+            Command::JOIN(_, _, _) => {
+                self.send_tells(client, message.source_nickname().unwrap())
+            }
             _ => ExecutionStatus::Done,
         }
     }
@@ -147,14 +167,16 @@ impl<T: Database> Plugin for Tell<T> {
         Ok(match command.tokens[0].as_ref() {
             "help" => client
                 .send_notice(&command.source, &self.help(client))
-                .context(FrippyErrorKind::Connection),
+                .context(FrippyErrorKind::Connection)
+                .into(),
             _ => match self.tell_command(client, command) {
                 Ok(msg) => client
-                    .send_notice(&sender, msg)
-                    .context(FrippyErrorKind::Connection),
-                Err(msg) => client
                     .send_notice(&sender, &msg)
                     .context(FrippyErrorKind::Connection),
+                Err(e) => client
+                        .send_notice(&sender, &e.to_string())
+                        .context(FrippyErrorKind::Connection)
+                        .into()
             },
         }?)
     }
@@ -168,5 +190,25 @@ use std::fmt;
 impl<T: Database> fmt::Debug for Tell<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Tell {{ ... }}")
+    }
+}
+
+pub mod error {
+    #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
+    #[error = "TellError"]
+    pub enum ErrorKind {
+        /// Not found command error
+        #[fail(display = "Tell was not found")]
+        NotFound,
+
+        /// MySQL error
+        #[cfg(feature = "mysql")]
+        #[fail(display = "Failed to execute MySQL Query")]
+        MysqlError,
+
+        /// No connection error
+        #[cfg(feature = "mysql")]
+        #[fail(display = "No connection to the database")]
+        NoConnection,
     }
 }

@@ -144,9 +144,7 @@ impl<T: Database> Tell<T> {
 impl<T: Database> Plugin for Tell<T> {
     fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::JOIN(_, _, _) => {
-                self.send_tells(client, message.source_nickname().unwrap())
-            }
+            Command::JOIN(_, _, _) => self.send_tells(client, message.source_nickname().unwrap()),
             _ => ExecutionStatus::Done,
         }
     }
@@ -174,9 +172,9 @@ impl<T: Database> Plugin for Tell<T> {
                     .send_notice(&sender, &msg)
                     .context(FrippyErrorKind::Connection),
                 Err(e) => client
-                        .send_notice(&sender, &e.to_string())
-                        .context(FrippyErrorKind::Connection)
-                        .into()
+                    .send_notice(&sender, &e.to_string())
+                    .context(FrippyErrorKind::Connection)
+                    .into(),
             },
         }?)
     }

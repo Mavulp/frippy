@@ -43,6 +43,7 @@ pub struct NewTellMessage<'a> {
 pub trait Database: Send {
     fn insert_tell(&mut self, tell: &NewTellMessage) -> Result<(), TellError>;
     fn get_tells(&self, receiver: &str) -> Result<Vec<TellMessage>, TellError>;
+    fn get_receivers(&self) -> Result<Vec<String>, TellError>;
     fn delete_tells(&mut self, receiver: &str) -> Result<(), TellError>;
 }
 
@@ -67,6 +68,12 @@ impl Database for HashMap<String, Vec<TellMessage>> {
 
     fn get_tells(&self, receiver: &str) -> Result<Vec<TellMessage>, TellError> {
         Ok(self.get(receiver).cloned().ok_or(ErrorKind::NotFound)?)
+    }
+
+    fn get_receivers(&self) -> Result<Vec<String>, TellError> {
+        Ok(self.iter()
+            .map(|(receiver, _)| receiver.to_owned())
+            .collect::<Vec<_>>())
     }
 
     fn delete_tells(&mut self, receiver: &str) -> Result<(), TellError> {
@@ -117,6 +124,16 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
             .filter(columns::receiver.eq(receiver))
             .order(columns::time.asc())
             .load::<TellMessage>(conn)
+            .context(ErrorKind::MysqlError)?)
+    }
+
+    fn get_receivers(&self) -> Result<Vec<String>, TellError> {
+        use self::tells::columns;
+
+        let conn = &*self.get().context(ErrorKind::NoConnection)?;
+        Ok(tells::table
+            .select(columns::receiver)
+            .load::<String>(conn)
             .context(ErrorKind::MysqlError)?)
     }
 

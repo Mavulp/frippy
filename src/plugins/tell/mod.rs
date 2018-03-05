@@ -51,6 +51,10 @@ impl<T: Database> Tell<T> {
         let receiver = &command.tokens[0];
         let sender = command.source;
 
+        if receiver.eq_ignore_ascii_case(client.current_nickname()) {
+            return Ok(String::from("I am right here!"));
+        }
+
         if receiver.eq_ignore_ascii_case(&sender) {
             return Ok(String::from("That's your name!"));
         }
@@ -82,7 +86,36 @@ impl<T: Database> Tell<T> {
         Ok(String::from("Got it!"))
     }
 
-    fn send_tells(&self, client: &IrcClient, receiver: &str) -> ExecutionStatus {
+    fn on_namelist(
+        &self,
+        client: &IrcClient,
+        channel: &str,
+    ) -> Result<(), FrippyError> {
+        let receivers = try_lock!(self.tells)
+            .get_receivers()
+            .context(FrippyErrorKind::Tell)?;
+
+        if let Some(users) = client.list_users(channel) {
+            debug!("Outstanding tells for {:?}", receivers);
+
+            for receiver in users
+                .iter()
+                .map(|u| u.get_nickname())
+                .filter(|u| receivers.iter().any(|r| r == &u.to_lowercase()))
+            {
+                self.send_tells(client, receiver)?;
+            }
+
+            Ok(())
+        } else {
+            Ok(())
+        }
+    }
+    fn send_tells(&self, client: &IrcClient, receiver: &str) -> Result<(), FrippyError> {
+        if client.current_nickname() == receiver {
+            return Ok(());
+        }
+
         let mut tells = try_lock!(self.tells);
 
         let tell_messages = match tells.get_tells(&receiver.to_lowercase()) {
@@ -91,8 +124,8 @@ impl<T: Database> Tell<T> {
                 // This warning only occurs if frippy is built without a database
                 #[allow(unreachable_patterns)]
                 return match e.kind() {
-                    ErrorKind::NotFound => ExecutionStatus::Done,
-                    _ => ExecutionStatus::Err(e.context(FrippyErrorKind::Tell).into()),
+                    ErrorKind::NotFound => Ok(()),
+                    _ => Err(e.context(FrippyErrorKind::Tell))?,
                 };
             }
         };
@@ -102,26 +135,27 @@ impl<T: Database> Tell<T> {
             let dur = now - Duration::new(tell.time.timestamp() as u64, 0);
             let human_dur = format_duration(dur);
 
-            if let Err(e) = client.send_notice(
-                receiver,
-                &format!(
-                    "Tell from {} {} ago: {}",
-                    tell.sender, human_dur, tell.message
-                ),
-            ) {
-                return ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into());
-            }
+            client
+                .send_notice(
+                    receiver,
+                    &format!(
+                        "Tell from {} {} ago: {}",
+                        tell.sender, human_dur, tell.message
+                    ),
+                )
+                .context(FrippyErrorKind::Connection)?;
+
             debug!(
                 "Sent {:?} from {:?} to {:?}",
                 tell.message, tell.sender, receiver
             );
         }
 
-        if let Err(e) = tells.delete_tells(&receiver.to_lowercase()) {
-            return ExecutionStatus::Err(e.context(FrippyErrorKind::Tell).into());
-        };
+        tells
+            .delete_tells(&receiver.to_lowercase())
+            .context(FrippyErrorKind::Tell)?;
 
-        ExecutionStatus::Done
+        Ok(())
     }
 
     fn invalid_command(&self, client: &IrcClient) -> String {
@@ -143,9 +177,26 @@ impl<T: Database> Tell<T> {
 
 impl<T: Database> Plugin for Tell<T> {
     fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
-        match message.command {
+        let res = match message.command {
             Command::JOIN(_, _, _) => self.send_tells(client, message.source_nickname().unwrap()),
-            _ => ExecutionStatus::Done,
+            Command::Response(resp, ref chan_info, _) => {
+                if resp == Response::RPL_NAMREPLY {
+                    debug!("NAMREPLY info: {:?}", chan_info);
+
+                    self.on_namelist(
+                        client,
+                        &chan_info[chan_info.len() - 1],
+                    )
+                } else {
+                    Ok(())
+                }
+            }
+            _ => Ok(()),
+        };
+
+        match res {
+            Ok(_) => ExecutionStatus::Done,
+            Err(e) => ExecutionStatus::Err(e),
         }
     }
 

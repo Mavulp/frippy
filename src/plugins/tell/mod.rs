@@ -179,6 +179,7 @@ impl<T: Database> Plugin for Tell<T> {
     fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
         let res = match message.command {
             Command::JOIN(_, _, _) => self.send_tells(client, message.source_nickname().unwrap()),
+            Command::NICK(ref nick) => self.send_tells(client, nick),
             Command::Response(resp, ref chan_info, _) => {
                 if resp == Response::RPL_NAMREPLY {
                     debug!("NAMREPLY info: {:?}", chan_info);

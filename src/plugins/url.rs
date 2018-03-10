@@ -1,3 +1,4 @@
+extern crate htmlescape;
 extern crate regex;
 
 use irc::client::prelude::*;
@@ -35,23 +36,24 @@ impl Url {
         Some(captures.get(2)?.as_str().to_owned())
     }
 
-    fn get_title<'a>(&self, body: &'a str) -> Option<&'a str> {
+    fn get_title<'a>(&self, body: &str) -> Result<String, UrlError> {
         let title = body.find("<title>")
             .map(|start| body.find("</title>").map(|end| &body[start + 7..end]))
-            .and_then(|s| s);
+            .and_then(|s| s).ok_or(ErrorKind::MissingTitle)?;
+
 
         debug!("Title: {:?}", title);
 
-        title
+        htmlescape::decode_html(title).map_err(|_| ErrorKind::HtmlDecoding.into())
     }
 
     fn url(&self, text: &str) -> Result<String, UrlError> {
         let url = self.grep_url(text).ok_or(ErrorKind::MissingUrl)?;
         let body = utils::download(&url, Some(self.max_kib)).context(ErrorKind::Download)?;
 
-        let title = self.get_title(&body).ok_or(ErrorKind::MissingTitle)?;
+        let title = self.get_title(&body)?;
 
-        Ok(title.to_owned())
+        Ok(title.replace('\n', "|").replace('\r', "|"))
     }
 }
 
@@ -110,5 +112,9 @@ pub mod error {
         /// Missing title error
         #[fail(display = "No title was found")]
         MissingTitle,
+
+        /// Html decoding error
+        #[fail(display = "Failed to decode Html characters")]
+        HtmlDecoding,
     }
 }

@@ -37,10 +37,20 @@ impl Url {
     }
 
     fn get_title<'a>(&self, body: &str) -> Result<String, UrlError> {
-        let title = body.find("<title>")
-            .map(|start| body.find("</title>").map(|end| &body[start + 7..end]))
-            .and_then(|s| s).ok_or(ErrorKind::MissingTitle)?;
-
+        let title = body.find("<title")
+            .map(|tag| {
+                body[tag..]
+                    .find('>')
+                    .map(|offset| tag + offset + 1)
+                    .map(|start| {
+                        body[start..]
+                            .find("</title>")
+                            .map(|offset| start + offset)
+                            .map(|end| &body[start..end])
+                    })
+            })
+            .and_then(|s| s.and_then(|s| s))
+            .ok_or(ErrorKind::MissingTitle)?;
 
         debug!("Title: {:?}", title);
 

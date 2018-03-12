@@ -48,49 +48,46 @@ impl<T: Database> Tell<T> {
             return Ok(self.invalid_command(client));
         }
 
-        let receiver = &command.tokens[0];
+        let receivers = command.tokens[0].split(',');
         let sender = command.source;
 
-        if receiver.eq_ignore_ascii_case(client.current_nickname()) {
-            return Ok(String::from("I am right here!"));
-        }
+        for receiver in receivers {
+            if receiver.eq_ignore_ascii_case(client.current_nickname()) {
+                return Ok(String::from("Sent all tells until my name was found."));
+            }
 
-        if receiver.eq_ignore_ascii_case(&sender) {
-            return Ok(String::from("That's your name!"));
-        }
+            if receiver.eq_ignore_ascii_case(&sender) {
+                return Ok(String::from("Sent all tells until your name was found."));
+            }
 
-        if let Some(channels) = client.list_channels() {
-            for channel in channels {
-                if let Some(users) = client.list_users(&channel) {
-                    if users
-                        .iter()
-                        .any(|u| u.get_nickname().eq_ignore_ascii_case(&receiver))
-                    {
-                        return Ok(format!("{} is currently online.", receiver));
+            if let Some(channels) = client.list_channels() {
+                for channel in channels {
+                    if let Some(users) = client.list_users(&channel) {
+                        if users
+                            .iter()
+                            .any(|u| u.get_nickname().eq_ignore_ascii_case(&receiver))
+                        {
+                            return Ok(format!("Sent all tells until {} was found who is currently online.", receiver));
+                        }
                     }
                 }
             }
+
+            let tm = time::now().to_timespec();
+            let message = command.tokens[1..].join(" ");
+            let tell = database::NewTellMessage {
+                sender: &sender,
+                receiver: &receiver.to_lowercase(),
+                time: NaiveDateTime::from_timestamp(tm.sec, 0u32),
+                message: &message,
+            };
+
+            try_lock!(self.tells).insert_tell(&tell)?;
         }
-
-        let tm = time::now().to_timespec();
-        let message = command.tokens[1..].join(" ");
-        let tell = database::NewTellMessage {
-            sender: &sender,
-            receiver: &receiver.to_lowercase(),
-            time: NaiveDateTime::from_timestamp(tm.sec, 0u32),
-            message: &message,
-        };
-
-        try_lock!(self.tells).insert_tell(&tell)?;
-
         Ok(String::from("Got it!"))
     }
 
-    fn on_namelist(
-        &self,
-        client: &IrcClient,
-        channel: &str,
-    ) -> Result<(), FrippyError> {
+    fn on_namelist(&self, client: &IrcClient, channel: &str) -> Result<(), FrippyError> {
         let receivers = try_lock!(self.tells)
             .get_receivers()
             .context(FrippyErrorKind::Tell)?;
@@ -111,6 +108,7 @@ impl<T: Database> Tell<T> {
             Ok(())
         }
     }
+
     fn send_tells(&self, client: &IrcClient, receiver: &str) -> Result<(), FrippyError> {
         if client.current_nickname() == receiver {
             return Ok(());
@@ -184,10 +182,7 @@ impl<T: Database> Plugin for Tell<T> {
                 if resp == Response::RPL_NAMREPLY {
                     debug!("NAMREPLY info: {:?}", chan_info);
 
-                    self.on_namelist(
-                        client,
-                        &chan_info[chan_info.len() - 1],
-                    )
+                    self.on_namelist(client, &chan_info[chan_info.len() - 1])
                 } else {
                     Ok(())
                 }

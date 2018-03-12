@@ -1,0 +1,7 @@
+CREATE TABLE tells (
+    id SERIAL PRIMARY KEY,
+    sender VARCHAR(32) NOT NULL,
+    receiver VARCHAR(32) NOT NULL,
+    time TIMESTAMP NOT NULL,
+    message VARCHAR(512) NOT NULL
+)

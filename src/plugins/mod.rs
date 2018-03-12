@@ -1,7 +1,8 @@
-mod help;
-mod emoji;
-mod currency;
-
-pub use self::help::Help;
-pub use self::emoji::Emoji;
-pub use self::currency::Currency;
+//! Collection of plugins included
+pub mod help;
+pub mod url;
+pub mod emoji;
+pub mod tell;
+pub mod currency;
+pub mod factoids;
+pub mod keepnick;

@@ -1,34 +1,36 @@
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
 
 use plugin::*;
 
-#[derive(PluginName, Debug)]
+use error::FrippyError;
+use error::ErrorKind as FrippyErrorKind;
+use failure::ResultExt;
+
+#[derive(PluginName, Default, Debug)]
 pub struct Help;
 
 impl Help {
     pub fn new() -> Help {
         Help {}
     }
-
-    fn help(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
-        server.send_notice(&command.source, "Help has not been added yet.")
-    }
 }
 
 impl Plugin for Help {
-    fn is_allowed(&self, _: &IrcServer, _: &Message) -> bool {
-        false
+    fn execute(&self, _: &IrcClient, _: &Message) -> ExecutionStatus {
+        ExecutionStatus::Done
     }
 
-    fn execute(&self, _: &IrcServer, _: &Message) -> Result<(), IrcError> {
-        panic!("Help does not implement the execute function!")
+    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), FrippyError> {
+        panic!("Help should not use threading")
     }
 
-    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError> {
-        self.help(server, command)
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
+        Ok(client
+            .send_notice(&command.source, "Help has not been added yet.")
+            .context(FrippyErrorKind::Connection)?)
+    }
+
+    fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
+        Err(String::from("Help has not been added yet."))
     }
 }
-
-#[cfg(test)]
-mod tests {}

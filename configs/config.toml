@@ -23,3 +23,8 @@ source = "https://github.com/Mavulp/frippy"
 
 #[channel_keys]
 #"#frippy" = ""
+
+[options]
+#disabled_plugins = "Url"
+# If no database url is set a HashMap is used
+#mysql_url = "mysql://user:password@address/db"

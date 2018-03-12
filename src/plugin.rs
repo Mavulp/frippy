@@ -1,49 +1,85 @@
+//! Definitions required for every `Plugin`
 use std::fmt;
-use std::collections::HashMap;
-use std::thread::spawn;
-use std::sync::Arc;
 
 use irc::client::prelude::*;
-use irc::error::Error as IrcError;
+use error::FrippyError;
 
-pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
-    fn is_allowed(&self, server: &IrcServer, message: &Message) -> bool;
-    fn execute(&self, server: &IrcServer, message: &Message) -> Result<(), IrcError>;
-    fn command(&self, server: &IrcServer, command: PluginCommand) -> Result<(), IrcError>;
+/// Describes if a [`Plugin`](trait.Plugin.html) is done working on a
+/// [`Message`](../../irc/proto/message/struct.Message.html) or if another thread is required.
+#[derive(Debug)]
+pub enum ExecutionStatus {
+    /// The [`Plugin`](trait.Plugin.html) does not need to do any more work on this
+    /// [`Message`](../../irc/proto/message/struct.Message.html).
+    Done,
+    /// An error occured during the execution.
+    Err(FrippyError),
+    /// The execution needs to be done by [`execute_threaded()`](trait.Plugin.html#tymethod.execute_threaded).
+    RequiresThread,
 }
 
-pub trait PluginName: Send + Sync + fmt::Debug {
+/// `Plugin` has to be implemented for any struct that should be usable
+/// as a `Plugin` in frippy.
+pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
+    /// Handles messages which are not commands or returns
+    /// [`RequiresThread`](enum.ExecutionStatus.html#variant.RequiresThread)
+    /// if [`execute_threaded()`](trait.Plugin.html#tymethod.execute_threaded) should be used instead.
+    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus;
+    /// Handles messages which are not commands in a new thread.
+    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError>;
+    /// Handles any command directed at this plugin.
+    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError>;
+    /// Similar to [`command()`](trait.Plugin.html#tymethod.command) but return a String instead of
+    /// sending messages directly to IRC.
+    fn evaluate(&self, client: &IrcClient, command: PluginCommand) -> Result<String, String>;
+}
+
+/// `PluginName` is required by [`Plugin`](trait.Plugin.html).
+///
+/// To implement it simply add `#[derive(PluginName)]`
+/// above the definition of the struct.
+///
+/// # Examples
+/// ```ignore
+/// #[macro_use] extern crate frippy_derive;
+///
+/// #[derive(PluginName)]
+/// struct Foo;
+/// ```
+pub trait PluginName {
+    /// Returns the name of the `Plugin`.
     fn name(&self) -> &str;
 }
 
+/// Represents a command sent by a user to the bot.
 #[derive(Clone, Debug)]
 pub struct PluginCommand {
+    /// The sender of the command.
     pub source: String,
+    /// If the command was sent to a channel, this will be that channel
+    /// otherwise it is the same as `source`.
     pub target: String,
+    /// The remaining part of the message that has not been processed yet - split by spaces.
     pub tokens: Vec<String>,
 }
 
 impl PluginCommand {
+    /// Creates a `PluginCommand` from [`Message`](../../irc/proto/message/struct.Message.html)
+    /// if it contains a [`PRIVMSG`](../../irc/proto/command/enum.Command.html#variant.PRIVMSG)
+    /// that starts with the provided `nick`.
     pub fn from(nick: &str, message: &Message) -> Option<PluginCommand> {
-
         // Get the actual message out of PRIVMSG
         if let Command::PRIVMSG(_, ref content) = message.command {
-
             // Split content by spaces and filter empty tokens
             let mut tokens: Vec<String> = content.split(' ').map(ToOwned::to_owned).collect();
 
             // Commands start with our name
             if tokens[0].to_lowercase().starts_with(nick) {
-
                 // Remove the bot's name from the first token
                 tokens[0].drain(..nick.len());
 
                 // We assume that only ':' and ',' are used as suffixes on IRC
                 // If there are any other chars we assume that it is not ment for the bot
-                tokens[0] = tokens[0]
-                    .chars()
-                    .filter(|&c| !":,".contains(c))
-                    .collect();
+                tokens[0] = tokens[0].chars().filter(|&c| !":,".contains(c)).collect();
                 if !tokens[0].is_empty() {
                     return None;
                 }
@@ -52,108 +88,15 @@ impl PluginCommand {
                 tokens.remove(0);
 
                 Some(PluginCommand {
-                         source: message.source_nickname().unwrap().to_string(),
-                         target: message.response_target().unwrap().to_string(),
-                         tokens: tokens,
-                     })
+                    source: message.source_nickname().unwrap().to_string(),
+                    target: message.response_target().unwrap().to_string(),
+                    tokens: tokens,
+                })
             } else {
                 None
             }
         } else {
             None
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct ThreadedPlugins {
-    plugins: HashMap<String, Arc<Plugin>>,
-}
-
-impl ThreadedPlugins {
-    pub fn new() -> ThreadedPlugins {
-        ThreadedPlugins { plugins: HashMap::new() }
-    }
-
-    pub fn add<T: Plugin + 'static>(&mut self, plugin: T) {
-        let name = plugin.name().to_lowercase();
-        let safe_plugin = Arc::new(plugin);
-
-        self.plugins.insert(name, safe_plugin);
-    }
-
-    pub fn execute_plugins(&mut self, server: &IrcServer, message: Arc<Message>) {
-
-        for (name, plugin) in self.plugins.clone() {
-            // Send the message to the plugin if the plugin needs it
-            if plugin.is_allowed(server, &message) {
-
-                debug!("Executing {} with {}",
-                       name,
-                       message.to_string().replace("\r\n", ""));
-
-                // Clone everything before the move
-                // The server uses an Arc internally too
-                let plugin = Arc::clone(&plugin);
-                let message = Arc::clone(&message);
-                let server = server.clone();
-
-                // Execute the plugin in another thread
-                spawn(move || {
-                          if let Err(e) = plugin.execute(&server, &message) {
-                              error!("Error in {} - {}", name, e);
-                          };
-                      });
-            }
-        }
-    }
-
-    pub fn handle_command(&mut self,
-                          server: &IrcServer,
-                          mut command: PluginCommand)
-                          -> Result<(), IrcError> {
-
-        if !command.tokens.iter().any(|s| !s.is_empty()) {
-            let help = format!("Use \"{} help\" to get help", server.current_nickname());
-            return server.send_notice(&command.source, &help);
-        }
-
-        // Check if the command is for this plugin
-        if let Some(plugin) = self.plugins.get(&command.tokens[0].to_lowercase()) {
-
-            // The first token contains the name of the plugin
-            let name = command.tokens.remove(0);
-
-            debug!("Sending command \"{:?}\" to {}", command, name);
-
-            // Clone for the move - the server uses an Arc internally
-            let server = server.clone();
-            let plugin = Arc::clone(plugin);
-            spawn(move || {
-                      if let Err(e) = plugin.command(&server, command) {
-                          error!("Error in {} command - {}", name, e);
-                      };
-                  });
-
-            Ok(())
-
-        } else {
-            let help = format!("\"{} {}\" is not a command, \
-                                try \"{0} help\" instead.",
-                               server.current_nickname(),
-                               command.tokens[0]);
-
-            server.send_notice(&command.source, &help)
-        }
-    }
-}
-
-impl fmt::Display for ThreadedPlugins {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let plugin_names = self.plugins
-            .iter()
-            .map(|(_, p)| p.name().to_string())
-            .collect::<Vec<String>>();
-        write!(f, "{}", plugin_names.join(", "))
     }
 }

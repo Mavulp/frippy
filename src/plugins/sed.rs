@@ -58,8 +58,8 @@ impl Sed {
         let captures = RE.captures(message).unwrap();
         debug!("{:?}", captures);
 
-        let first = captures.get(1).unwrap().as_str();
-        let second = captures.get(2).unwrap().as_str();
+        let first = captures.get(1).unwrap().as_str().replace(r"\/", "/");
+        let second = captures.get(2).unwrap().as_str().replace(r"\/", "/");
 
         if let Some(flags) = captures.get(3) {
             let flags = flags.as_str();
@@ -67,16 +67,17 @@ impl Sed {
             global_match = flags.contains('g');
             case_insens = flags.contains('i');
             ign_whitespace = flags.contains('x');
-            disable_unicode = !flags.contains('u');
             swap_greed = flags.contains('U');
+            disable_unicode = !flags.contains('u');
         }
 
-        let user_re = RegexBuilder::new(&first.replace(r"\/", "/"))
+        let user_re = RegexBuilder::new(&first)
             .case_insensitive(case_insens)
             .ignore_whitespace(ign_whitespace)
             .unicode(disable_unicode)
             .swap_greed(swap_greed)
-            .build().context(ErrorKind::InvalidRegex)?;
+            .build()
+            .context(ErrorKind::InvalidRegex)?;
 
         let channel_messages = try_lock!(self.channel_messages);
         let messages = channel_messages.get(channel).ok_or(ErrorKind::NoMessages)?;
@@ -84,9 +85,9 @@ impl Sed {
         for message in messages.iter() {
             if user_re.is_match(message) {
                 let response = if global_match {
-                    user_re.replace_all(message, second)
+                    user_re.replace_all(message, &second[..])
                 } else {
-                    user_re.replace(message, second)
+                    user_re.replace(message, &second[..])
                 };
 
                 return Ok(response.to_string());
@@ -113,7 +114,9 @@ impl Plugin for Sed {
                     };
 
                     match result {
-                        Err(e) => ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into()),
+                        Err(e) => {
+                            ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into())
+                        }
                         Ok(_) => ExecutionStatus::Done,
                     }
                 } else {

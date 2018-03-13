@@ -29,13 +29,14 @@ use log::{Level, LevelFilter, Metadata, Record};
 use irc::client::reactor::IrcReactor;
 use glob::glob;
 
-pub use frippy::plugins::help::Help;
-pub use frippy::plugins::url::Url;
-pub use frippy::plugins::emoji::Emoji;
-pub use frippy::plugins::tell::Tell;
-pub use frippy::plugins::currency::Currency;
-pub use frippy::plugins::keepnick::KeepNick;
-pub use frippy::plugins::factoids::Factoids;
+use frippy::plugins::help::Help;
+use frippy::plugins::url::Url;
+use frippy::plugins::sed::Sed;
+use frippy::plugins::emoji::Emoji;
+use frippy::plugins::tell::Tell;
+use frippy::plugins::currency::Currency;
+use frippy::plugins::keepnick::KeepNick;
+use frippy::plugins::factoids::Factoids;
 
 use frippy::Config;
 use failure::Error;
@@ -133,6 +134,7 @@ fn run() -> Result<(), Error> {
         let mut bot = frippy::Bot::new();
         bot.add_plugin(Help::new());
         bot.add_plugin(Url::new(1024));
+        bot.add_plugin(Sed::new(60));
         bot.add_plugin(Emoji::new());
         bot.add_plugin(Currency::new());
         bot.add_plugin(KeepNick::new());

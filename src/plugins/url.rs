@@ -1,9 +1,8 @@
 extern crate htmlescape;
-extern crate regex;
 
 use irc::client::prelude::*;
 
-use self::regex::Regex;
+use regex::Regex;
 
 use plugin::*;
 use utils;

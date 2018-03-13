@@ -47,8 +47,10 @@ extern crate lazy_static;
 extern crate log;
 
 extern crate chrono;
+extern crate circular_queue;
 extern crate humantime;
 extern crate irc;
+extern crate regex;
 extern crate reqwest;
 extern crate time;
 

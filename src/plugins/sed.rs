@@ -48,6 +48,23 @@ impl Sed {
         messages.push(message);
     }
 
+    fn format_escaped(&self, input: &str) -> String {
+        let mut output = String::with_capacity(input.len());
+        let mut escape = false;
+
+        for c in input.chars() {
+            if !escape && c == '\\' {
+                escape = true;
+                continue;
+            }
+            escape = false;
+
+            output.push(c);
+        }
+
+        output
+    }
+
     fn run_regex(&self, channel: &str, message: &str) -> Result<String, SedError> {
         let mut global_match = false;
         let mut case_insens = false;
@@ -58,8 +75,8 @@ impl Sed {
         let captures = RE.captures(message).unwrap();
         debug!("{:?}", captures);
 
-        let first = captures.get(1).unwrap().as_str().replace(r"\/", "/");
-        let second = captures.get(2).unwrap().as_str().replace(r"\/", "/");
+        let first = self.format_escaped(captures.get(1).unwrap().as_str());
+        let second = self.format_escaped(captures.get(2).unwrap().as_str());
 
         if let Some(flags) = captures.get(3) {
             let flags = flags.as_str();

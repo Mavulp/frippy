@@ -53,7 +53,10 @@ impl Sed {
         let mut escape = false;
 
         for c in input.chars() {
-            if !escape && c == '\\' {
+            if escape && !r"/\".contains(c) {
+                output.push('\\');
+
+            } else if !escape && c == '\\' {
                 escape = true;
                 continue;
             }

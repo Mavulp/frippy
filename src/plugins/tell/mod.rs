@@ -48,27 +48,31 @@ impl<T: Database> Tell<T> {
             return Ok(self.invalid_command(client));
         }
 
+        let mut online = Vec::new();
+
         let receivers = command.tokens[0].split(',');
         let sender = command.source;
 
         for receiver in receivers {
-            if receiver.eq_ignore_ascii_case(client.current_nickname()) {
-                return Ok(String::from("Sent all tells until my name was found."));
+            if receiver.eq_ignore_ascii_case(client.current_nickname())
+                || receiver.eq_ignore_ascii_case(&sender)
+            {
+                online.push(receiver);
+                continue;
             }
 
-            if receiver.eq_ignore_ascii_case(&sender) {
-                return Ok(String::from("Sent all tells until your name was found."));
-            }
+            let channels = client
+                .list_channels()
+                .expect("The irc crate should not be compiled with the \"nochanlists\" feature");
 
-            if let Some(channels) = client.list_channels() {
-                for channel in channels {
-                    if let Some(users) = client.list_users(&channel) {
-                        if users
-                            .iter()
-                            .any(|u| u.get_nickname().eq_ignore_ascii_case(&receiver))
-                        {
-                            return Ok(format!("Sent all tells until {} was found who is currently online.", receiver));
-                        }
+            for channel in channels {
+                if let Some(users) = client.list_users(&channel) {
+                    if users
+                        .iter()
+                        .any(|u| u.get_nickname().eq_ignore_ascii_case(&receiver))
+                    {
+                        online.push(receiver);
+                        continue;
                     }
                 }
             }
@@ -84,7 +88,12 @@ impl<T: Database> Tell<T> {
 
             try_lock!(self.tells).insert_tell(&tell)?;
         }
-        Ok(String::from("Got it!"))
+
+        Ok(match online.len() {
+            0 => format!("Got it!"),
+            1 => format!("{} is currently online.", online[0]),
+            _ => format!("{} are currently online.", online.join(", ")),
+        })
     }
 
     fn on_namelist(&self, client: &IrcClient, channel: &str) -> Result<(), FrippyError> {

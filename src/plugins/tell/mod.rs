@@ -65,16 +65,19 @@ impl<T: Database> Tell<T> {
                 .list_channels()
                 .expect("The irc crate should not be compiled with the \"nochanlists\" feature");
 
-            for channel in channels {
-                if let Some(users) = client.list_users(&channel) {
-                    if users
-                        .iter()
-                        .any(|u| u.get_nickname().eq_ignore_ascii_case(&receiver))
-                    {
-                        online.push(receiver);
-                        continue;
-                    }
-                }
+            if let Some(_) = channels
+                .iter()
+                .map(|c| client.list_users(&c))
+                .map(|opt| {
+                    opt.and_then(|us| {
+                        us.into_iter()
+                            .find(|u| u.get_nickname().eq_ignore_ascii_case(&receiver))
+                    })
+                })
+                .find(|opt| opt.is_some())
+            {
+                online.push(receiver);
+                continue;
             }
 
             let tm = time::now().to_timespec();

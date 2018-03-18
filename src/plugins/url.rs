@@ -62,7 +62,7 @@ impl Url {
 
         let title = self.get_title(&body)?;
 
-        Ok(title.replace('\n', "|").replace('\r', "|"))
+        Ok(title.trim().replace('\n', "|").replace('\r', "|"))
     }
 }
 

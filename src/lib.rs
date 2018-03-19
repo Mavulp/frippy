@@ -14,7 +14,7 @@
 //!
 //! let config = Config::load("config.toml").unwrap();
 //! let mut reactor = IrcReactor::new().unwrap();
-//! let mut bot = Bot::new();
+//! let mut bot = Bot::new(".");
 //!
 //! bot.add_plugin(plugins::help::Help::new());
 //! bot.add_plugin(plugins::emoji::Emoji::new());
@@ -79,16 +79,18 @@ pub struct Bot<'a> {
 }
 
 impl<'a> Bot<'a> {
-    /// Creates a `Bot`.
+    /// Creates a `Bot` without any plugins.  
     /// By itself the bot only responds to a few simple CTCP commands
     /// defined per config file.
     /// Any other functionality has to be provided by plugins
-    /// which need to implement [`Plugin`](plugin/trait.Plugin.html).
+    /// which need to implement [`Plugin`](plugin/trait.Plugin.html).  
+    /// To send commands to a plugin
+    /// the message has to start with the plugin's name prefixed by `cmd_prefix`.
     ///
     /// # Examples
     /// ```
     /// use frippy::Bot;
-    /// let mut bot = Bot::new();
+    /// let mut bot = Bot::new(".");
     /// ```
     pub fn new(cmd_prefix: &'a str) -> Bot<'a> {
         Bot {
@@ -104,7 +106,7 @@ impl<'a> Bot<'a> {
     /// ```
     /// use frippy::{plugins, Bot};
     ///
-    /// let mut bot = frippy::Bot::new();
+    /// let mut bot = frippy::Bot::new(".");
     /// bot.add_plugin(plugins::help::Help::new());
     /// ```
     pub fn add_plugin<T: Plugin + 'static>(&mut self, plugin: T) {
@@ -119,7 +121,7 @@ impl<'a> Bot<'a> {
     /// ```
     /// use frippy::{plugins, Bot};
     ///
-    /// let mut bot = frippy::Bot::new();
+    /// let mut bot = frippy::Bot::new(".");
     /// bot.add_plugin(plugins::help::Help::new());
     /// bot.remove_plugin("Help");
     /// ```
@@ -146,7 +148,7 @@ impl<'a> Bot<'a> {
     ///
     /// let config = Config::load("config.toml").unwrap();
     /// let mut reactor = IrcReactor::new().unwrap();
-    /// let mut bot = Bot::new();
+    /// let mut bot = Bot::new(".");
     ///
     /// bot.connect(&mut reactor, &config).unwrap();
     /// reactor.run().unwrap();

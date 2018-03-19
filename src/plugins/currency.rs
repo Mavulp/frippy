@@ -70,15 +70,15 @@ impl Currency {
         })
     }
 
-    fn convert(&self, client: &IrcClient, command: &mut PluginCommand) -> Result<String, String> {
+    fn convert(&self, command: &mut PluginCommand) -> Result<String, &str> {
         if command.tokens.len() < 3 {
-            return Err(self.invalid_command(client));
+            return Err(self.invalid_command());
         }
 
         let request = match self.eval_command(&command.tokens) {
             Ok(request) => request,
             Err(_) => {
-                return Err(self.invalid_command(client));
+                return Err(self.invalid_command());
             }
         };
 
@@ -94,31 +94,23 @@ impl Currency {
 
                 Ok(response)
             }
-            None => Err(String::from(
-                "An error occured during the conversion of the given currency",
-            )),
+            None => Err("An error occured during the conversion of the given currency"),
         }
     }
 
-    fn help(&self, client: &IrcClient) -> String {
-        format!(
-            "usage: {} currency value from_currency to_currency\r\n\
-             example: {0} currency 1.5 eur usd\r\n\
-             available currencies: AUD, BGN, BRL, CAD, \
-             CHF, CNY, CZK, DKK, GBP, HKD, HRK, HUF, \
-             IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \
-             NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, \
-             TRY, USD, ZAR",
-            client.current_nickname()
-        )
+    fn help(&self) -> &str {
+        "usage: currency value from_currency to_currency\r\n\
+         example: {0} currency 1.5 eur usd\r\n\
+         available currencies: AUD, BGN, BRL, CAD, \
+         CHF, CNY, CZK, DKK, GBP, HKD, HRK, HUF, \
+         IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \
+         NZD, PHP, PLN, RON, RUB, SEK, SGD, THB, \
+         TRY, USD, ZAR"
     }
 
-    fn invalid_command(&self, client: &IrcClient) -> String {
-        format!(
-            "Incorrect Command. \
-             Send \"{} currency help\" for help.",
-            client.current_nickname()
-        )
+    fn invalid_command(&self) -> &str {
+        "Incorrect Command. \
+         Send \"currency help\" for help."
     }
 }
 
@@ -134,15 +126,15 @@ impl Plugin for Currency {
     fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
             return Ok(client
-                .send_notice(&command.source, &self.invalid_command(client))
+                .send_notice(&command.source, &self.invalid_command())
                 .context(FrippyErrorKind::Connection)?);
         }
 
         match command.tokens[0].as_ref() {
             "help" => Ok(client
-                .send_notice(&command.source, &self.help(client))
+                .send_notice(&command.source, self.help())
                 .context(FrippyErrorKind::Connection)?),
-            _ => match self.convert(client, &mut command) {
+            _ => match self.convert(&mut command) {
                 Ok(msg) => Ok(client
                     .send_privmsg(&command.target, &msg)
                     .context(FrippyErrorKind::Connection)?),
@@ -153,14 +145,14 @@ impl Plugin for Currency {
         }
     }
 
-    fn evaluate(&self, client: &IrcClient, mut command: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &IrcClient, mut command: PluginCommand) -> Result<String, String> {
         if command.tokens.is_empty() {
-            return Err(self.invalid_command(client));
+            return Err(self.invalid_command().to_owned());
         }
 
         match command.tokens[0].as_ref() {
-            "help" => Ok(self.help(client)),
-            _ => self.convert(client, &mut command),
+            "help" => Ok(self.help().to_owned()),
+            _ => self.convert(&mut command).map_err(|e| e.to_owned()),
         }
     }
 }

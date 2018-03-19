@@ -121,17 +121,20 @@ fn run() -> Result<(), Error> {
 
     // Open a connection and add work for each config
     for config in configs {
+        let mut prefix = None;
         let mut disabled_plugins = None;
         let mut mysql_url = None;
         if let Some(ref options) = config.options {
             if let Some(disabled) = options.get("disabled_plugins") {
                 disabled_plugins = Some(disabled.split(',').map(|p| p.trim()).collect::<Vec<_>>());
             }
+            prefix = options.get("prefix");
 
             mysql_url = options.get("mysql_url");
         }
+        let prefix = prefix.map(|&ref s| s.clone()).unwrap_or(String::from("."));
 
-        let mut bot = frippy::Bot::new();
+        let mut bot = frippy::Bot::new(&prefix);
         bot.add_plugin(Help::new());
         bot.add_plugin(Url::new(1024));
         bot.add_plugin(Sed::new(60));

@@ -73,11 +73,12 @@ use plugin::*;
 
 /// The bot which contains the main logic.
 #[derive(Default)]
-pub struct Bot {
+pub struct Bot<'a> {
+    prefix: &'a str,
     plugins: ThreadedPlugins,
 }
 
-impl Bot {
+impl<'a> Bot<'a> {
     /// Creates a `Bot`.
     /// By itself the bot only responds to a few simple CTCP commands
     /// defined per config file.
@@ -89,8 +90,9 @@ impl Bot {
     /// use frippy::Bot;
     /// let mut bot = Bot::new();
     /// ```
-    pub fn new() -> Bot {
+    pub fn new(cmd_prefix: &'a str) -> Bot<'a> {
         Bot {
+            prefix: cmd_prefix,
             plugins: ThreadedPlugins::new(),
         }
     }
@@ -162,11 +164,12 @@ impl Bot {
         client.identify().context(ErrorKind::Connection)?;
         info!("Identified");
 
-        // TODO Verify if we actually need to clone plugins twice
+        // TODO Verify if we actually need to clone twice
         let plugins = self.plugins.clone();
+        let prefix = self.prefix.to_owned();
 
         reactor.register_client_with_handler(client, move |client, message| {
-            process_msg(client, plugins.clone(), message)
+            process_msg(client, plugins.clone(), &prefix.clone(), message)
         });
 
         Ok(())
@@ -176,6 +179,7 @@ impl Bot {
 fn process_msg(
     client: &IrcClient,
     mut plugins: ThreadedPlugins,
+    prefix: &str,
     message: Message,
 ) -> Result<(), IrcError> {
     // Log any channels we join
@@ -186,7 +190,7 @@ fn process_msg(
     }
 
     // Check for possible command and save the result for later
-    let command = PluginCommand::from(&client.current_nickname().to_lowercase(), &message);
+    let command = PluginCommand::try_from(prefix, &message);
 
     plugins.execute_plugins(client, message);
 
@@ -259,14 +263,7 @@ impl ThreadedPlugins {
         client: &IrcClient,
         mut command: PluginCommand,
     ) -> Result<(), FrippyError> {
-        if !command.tokens.iter().any(|s| !s.is_empty()) {
-            let help = format!("Use \"{} help\" to get help", client.current_nickname());
-            client
-                .send_notice(&command.source, &help)
-                .context(ErrorKind::Connection)?;
-        }
-
-        // Check if the command is for this plugin
+        // Check if there is a plugin for this command
         if let Some(plugin) = self.plugins.get(&command.tokens[0].to_lowercase()) {
             // The first token contains the name of the plugin
             let name = command.tokens.remove(0);
@@ -281,20 +278,9 @@ impl ThreadedPlugins {
                     log_error(e);
                 };
             });
-
-            Ok(())
-        } else {
-            let help = format!(
-                "\"{} {}\" is not a command, \
-                 try \"{0} help\" instead.",
-                client.current_nickname(),
-                command.tokens[0]
-            );
-
-            Ok(client
-                .send_notice(&command.source, &help)
-                .context(ErrorKind::Connection)?)
         }
+
+        Ok(())
     }
 }
 

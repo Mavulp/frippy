@@ -45,7 +45,7 @@ impl<T: Database> Tell<T> {
         command: PluginCommand,
     ) -> Result<String, TellError> {
         if command.tokens.len() < 2 {
-            return Ok(self.invalid_command(client));
+            return Ok(self.invalid_command().to_owned());
         }
 
         let mut online = Vec::new();
@@ -168,20 +168,14 @@ impl<T: Database> Tell<T> {
         Ok(())
     }
 
-    fn invalid_command(&self, client: &IrcClient) -> String {
-        format!(
-            "Incorrect Command. \
-             Send \"{} tell help\" for help.",
-            client.current_nickname()
-        )
+    fn invalid_command(&self) -> &str {
+        "Incorrect Command. \
+         Send \"tell help\" for help."
     }
 
-    fn help(&self, client: &IrcClient) -> String {
-        format!(
-            "usage: {} tell user message\r\n\
-             example: {0} tell Foobar Hello!",
-            client.current_nickname()
-        )
+    fn help(&self) -> &str {
+        "usage: {} tell user message\r\n\
+         example: {0} tell Foobar Hello!"
     }
 }
 
@@ -215,7 +209,7 @@ impl<T: Database> Plugin for Tell<T> {
     fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
             return Ok(client
-                .send_notice(&command.source, &self.invalid_command(client))
+                .send_notice(&command.source, &self.invalid_command())
                 .context(FrippyErrorKind::Connection)?);
         }
 
@@ -223,7 +217,7 @@ impl<T: Database> Plugin for Tell<T> {
 
         Ok(match command.tokens[0].as_ref() {
             "help" => client
-                .send_notice(&command.source, &self.help(client))
+                .send_notice(&command.source, &self.help())
                 .context(FrippyErrorKind::Connection)
                 .into(),
             _ => match self.tell_command(client, command) {

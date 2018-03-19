@@ -50,9 +50,10 @@ impl<T: Database> Tell<T> {
 
         let mut online = Vec::new();
 
-        let receivers = command.tokens[0].split(',');
+        let receivers = command.tokens[0].split(',').filter(|&s| !s.is_empty());
         let sender = command.source;
 
+        let mut no_receiver = true;
         for receiver in receivers {
             if receiver.eq_ignore_ascii_case(client.current_nickname())
                 || receiver.eq_ignore_ascii_case(&sender)
@@ -89,13 +90,19 @@ impl<T: Database> Tell<T> {
                 message: &message,
             };
 
+            debug!("Saving tell for {:?}", receiver);
             try_lock!(self.tells).insert_tell(&tell)?;
+            no_receiver = false;
         }
 
-        Ok(match online.len() {
-            0 => format!("Got it!"),
-            1 => format!("{} is currently online.", online[0]),
-            _ => format!("{} are currently online.", online.join(", ")),
+        Ok(if no_receiver {
+            format!("Invalid receiver.")
+        } else {
+            match online.len() {
+                0 => format!("Got it!"),
+                1 => format!("{} is currently online.", online[0]),
+                _ => format!("{} are currently online.", online.join(", ")),
+            }
         })
     }
 

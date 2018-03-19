@@ -68,14 +68,14 @@ impl<T: Database> Tell<T> {
 
             if let Some(_) = channels
                 .iter()
-                .map(|c| client.list_users(&c))
-                .map(|opt| {
-                    opt.and_then(|us| {
-                        us.into_iter()
-                            .find(|u| u.get_nickname().eq_ignore_ascii_case(&receiver))
+                .map(|channel| client.list_users(&channel))
+                .map(|option| {
+                    option.and_then(|users| {
+                        users.into_iter()
+                            .find(|user| user.get_nickname().eq_ignore_ascii_case(&receiver))
                     })
                 })
-                .find(|opt| opt.is_some())
+                .find(|option| option.is_some())
             {
                 online.push(receiver);
                 continue;

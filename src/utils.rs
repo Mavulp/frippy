@@ -32,7 +32,7 @@ pub fn download(url: &str, max_kib: Option<usize>) -> Result<String, DownloadErr
             Err(e) => Err(e).context(ErrorKind::Read)?,
         };
 
-        bytes.extend_from_slice(&buf);
+        bytes.extend_from_slice(&buf[..len]);
         written += len;
 
         // Check if the file is too large to download

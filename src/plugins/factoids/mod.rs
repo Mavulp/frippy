@@ -179,7 +179,7 @@ impl<T: Database> Factoids<T> {
                 } else {
                     match self.run_lua(&name, &content, &command) {
                         Ok(v) => v,
-                        Err(e) => format!("\"{}\"", e),
+                        Err(e) => format!("{}", e),
                     }
                 }
             } else {

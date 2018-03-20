@@ -17,6 +17,7 @@ local sandbox_env = {
   print = send,
   println = sendln,
   eval = nil,
+  sleep = nil,
   args = args,
   input = input,
   user = user,
@@ -60,7 +61,18 @@ function eval(code)
   end
 end
 
+-- Only sleeps for 1 second at a time
+-- This ensures that the timeout check can still run
+function safesleep(dur)
+    while dur > 1000 do
+        dur = dur - 1000
+        sleep(1000)
+    end
+    sleep(dur)
+end
+
 sandbox_env.eval = eval
+sandbox_env.sleep = safesleep
 
 -- Check if the factoid timed out
 function checktime(event, line)

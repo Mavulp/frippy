@@ -86,7 +86,7 @@ impl<T: Database> Tell<T> {
             no_receiver = false;
         }
 
-        Ok(if no_receiver {
+        Ok(if no_receiver && online.is_empty() {
             format!("Invalid receiver.")
         } else {
             match online.len() {

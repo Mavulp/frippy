@@ -2,9 +2,9 @@ extern crate rlua;
 
 use std::fmt;
 use std::str::FromStr;
-use std::sync::Mutex;
 use self::rlua::prelude::*;
 use irc::client::prelude::*;
+use antidote::RwLock;
 
 use time;
 use chrono::NaiveDateTime;
@@ -25,22 +25,13 @@ static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
 #[derive(PluginName)]
 pub struct Factoids<T: Database> {
-    factoids: Mutex<T>,
-}
-
-macro_rules! try_lock {
-    ( $m:expr ) => {
-        match $m.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        }
-    }
+    factoids: RwLock<T>,
 }
 
 impl<T: Database> Factoids<T> {
     pub fn new(db: T) -> Factoids<T> {
         Factoids {
-            factoids: Mutex::new(db),
+            factoids: RwLock::new(db),
         }
     }
 
@@ -50,7 +41,7 @@ impl<T: Database> Factoids<T> {
         content: &str,
         author: &str,
     ) -> Result<&str, FactoidsError> {
-        let count = try_lock!(self.factoids).count_factoids(name)?;
+        let count = self.factoids.read().count_factoids(name)?;
         let tm = time::now().to_timespec();
 
         let factoid = database::NewFactoid {
@@ -61,7 +52,7 @@ impl<T: Database> Factoids<T> {
             created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
         };
 
-        Ok(try_lock!(self.factoids)
+        Ok(self.factoids.write()
             .insert_factoid(&factoid)
             .map(|()| "Successfully added!")?)
     }
@@ -95,9 +86,9 @@ impl<T: Database> Factoids<T> {
         }
 
         let name = command.tokens.remove(0);
-        let count = try_lock!(self.factoids).count_factoids(&name)?;
+        let count = self.factoids.read().count_factoids(&name)?;
 
-        match try_lock!(self.factoids).delete_factoid(&name, count - 1) {
+        match self.factoids.write().delete_factoid(&name, count - 1) {
             Ok(()) => Ok("Successfully removed"),
             Err(e) => Err(e)?,
         }
@@ -108,7 +99,7 @@ impl<T: Database> Factoids<T> {
             0 => Err(ErrorKind::InvalidCommand)?,
             1 => {
                 let name = &command.tokens[0];
-                let count = try_lock!(self.factoids).count_factoids(name)?;
+                let count = self.factoids.read().count_factoids(name)?;
 
                 if count < 1 {
                     Err(ErrorKind::NotFound)?;
@@ -127,7 +118,7 @@ impl<T: Database> Factoids<T> {
             }
         };
 
-        let factoid = try_lock!(self.factoids)
+        let factoid = self.factoids.read()
             .get_factoid(name, idx)
             .context(ErrorKind::NotFound)?;
 
@@ -141,7 +132,7 @@ impl<T: Database> Factoids<T> {
             0 => Err(ErrorKind::InvalidCommand)?,
             1 => {
                 let name = &command.tokens[0];
-                let count = try_lock!(self.factoids).count_factoids(name)?;
+                let count = self.factoids.read().count_factoids(name)?;
 
                 Ok(match count {
                     0 => Err(ErrorKind::NotFound)?,
@@ -152,7 +143,7 @@ impl<T: Database> Factoids<T> {
             _ => {
                 let name = &command.tokens[0];
                 let idx = i32::from_str(&command.tokens[1]).context(ErrorKind::InvalidIndex)?;
-                let factoid = try_lock!(self.factoids).get_factoid(name, idx)?;
+                let factoid = self.factoids.read().get_factoid(name, idx)?;
 
                 Ok(format!(
                     "{}: Added by {} at {} UTC",
@@ -167,8 +158,8 @@ impl<T: Database> Factoids<T> {
             Err(ErrorKind::InvalidIndex)?
         } else {
             let name = command.tokens.remove(0);
-            let count = try_lock!(self.factoids).count_factoids(&name)?;
-            let factoid = try_lock!(self.factoids).get_factoid(&name, count - 1)?;
+            let count = self.factoids.read().count_factoids(&name)?;
+            let factoid = self.factoids.read().get_factoid(&name, count - 1)?;
 
             let content = factoid.content;
             let value = if content.starts_with('>') {

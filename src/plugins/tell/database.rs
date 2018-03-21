@@ -40,7 +40,7 @@ pub struct NewTellMessage<'a> {
     pub message: &'a str,
 }
 
-pub trait Database: Send {
+pub trait Database: Send + Sync {
     fn insert_tell(&mut self, tell: &NewTellMessage) -> Result<(), TellError>;
     fn get_tells(&self, receiver: &str) -> Result<Vec<TellMessage>, TellError>;
     fn get_receivers(&self) -> Result<Vec<String>, TellError>;

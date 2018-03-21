@@ -53,6 +53,7 @@ extern crate irc;
 extern crate regex;
 extern crate reqwest;
 extern crate time;
+extern crate antidote;
 
 pub mod plugin;
 pub mod plugins;

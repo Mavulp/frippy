@@ -1,9 +1,8 @@
 use irc::client::prelude::*;
-
-use std::time::Duration;
-use std::sync::Mutex;
+use antidote::RwLock;
 
 use time;
+use std::time::Duration;
 use chrono::NaiveDateTime;
 use humantime::format_duration;
 
@@ -18,24 +17,15 @@ use self::error::*;
 pub mod database;
 use self::database::Database;
 
-macro_rules! try_lock {
-    ( $m:expr ) => {
-        match $m.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        }
-    }
-}
-
-#[derive(PluginName, Default)]
+#[derive(PluginName)]
 pub struct Tell<T: Database> {
-    tells: Mutex<T>,
+    tells: RwLock<T>,
 }
 
 impl<T: Database> Tell<T> {
     pub fn new(db: T) -> Tell<T> {
         Tell {
-            tells: Mutex::new(db),
+            tells: RwLock::new(db),
         }
     }
 
@@ -71,7 +61,8 @@ impl<T: Database> Tell<T> {
                 .map(|channel| client.list_users(&channel))
                 .map(|option| {
                     option.and_then(|users| {
-                        users.into_iter()
+                        users
+                            .into_iter()
                             .find(|user| user.get_nickname().eq_ignore_ascii_case(&receiver))
                     })
                 })
@@ -91,7 +82,7 @@ impl<T: Database> Tell<T> {
             };
 
             debug!("Saving tell for {:?}", receiver);
-            try_lock!(self.tells).insert_tell(&tell)?;
+            self.tells.write().insert_tell(&tell)?;
             no_receiver = false;
         }
 
@@ -107,7 +98,7 @@ impl<T: Database> Tell<T> {
     }
 
     fn on_namelist(&self, client: &IrcClient, channel: &str) -> Result<(), FrippyError> {
-        let receivers = try_lock!(self.tells)
+        let receivers = self.tells.read()
             .get_receivers()
             .context(FrippyErrorKind::Tell)?;
 
@@ -133,7 +124,7 @@ impl<T: Database> Tell<T> {
             return Ok(());
         }
 
-        let mut tells = try_lock!(self.tells);
+        let mut tells = self.tells.write();
 
         let tell_messages = match tells.get_tells(&receiver.to_lowercase()) {
             Ok(t) => t,

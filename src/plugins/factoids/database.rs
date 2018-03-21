@@ -40,7 +40,7 @@ pub struct NewFactoid<'a> {
     pub created: NaiveDateTime,
 }
 
-pub trait Database: Send {
+pub trait Database: Send + Sync {
     fn insert_factoid(&mut self, factoid: &NewFactoid) -> Result<(), FactoidsError>;
     fn get_factoid(&self, name: &str, idx: i32) -> Result<Factoid, FactoidsError>;
     fn delete_factoid(&mut self, name: &str, idx: i32) -> Result<(), FactoidsError>;

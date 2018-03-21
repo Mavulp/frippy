@@ -1,7 +1,7 @@
-use std::sync::Mutex;
 use std::collections::HashMap;
 use circular_queue::CircularQueue;
 use regex::{Regex, RegexBuilder};
+use antidote::RwLock;
 
 use irc::client::prelude::*;
 
@@ -20,28 +20,19 @@ lazy_static! {
 #[derive(PluginName, Debug)]
 pub struct Sed {
     per_channel: usize,
-    channel_messages: Mutex<HashMap<String, CircularQueue<String>>>,
-}
-
-macro_rules! try_lock {
-    ( $m:expr ) => {
-        match $m.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        }
-    }
+    channel_messages: RwLock<HashMap<String, CircularQueue<String>>>,
 }
 
 impl Sed {
     pub fn new(per_channel: usize) -> Sed {
         Sed {
             per_channel: per_channel,
-            channel_messages: Mutex::new(HashMap::new()),
+            channel_messages: RwLock::new(HashMap::new()),
         }
     }
 
     fn add_message(&self, channel: String, message: String) {
-        let mut channel_messages = try_lock!(self.channel_messages);
+        let mut channel_messages = self.channel_messages.write();
         let messages = channel_messages
             .entry(channel)
             .or_insert(CircularQueue::with_capacity(self.per_channel));
@@ -55,7 +46,6 @@ impl Sed {
         for c in input.chars() {
             if escape && !r"/\".contains(c) {
                 output.push('\\');
-
             } else if !escape && c == '\\' {
                 escape = true;
                 continue;
@@ -99,7 +89,7 @@ impl Sed {
             .build()
             .context(ErrorKind::InvalidRegex)?;
 
-        let channel_messages = try_lock!(self.channel_messages);
+        let channel_messages = self.channel_messages.read();
         let messages = channel_messages.get(channel).ok_or(ErrorKind::NoMessages)?;
 
         for message in messages.iter() {

@@ -61,7 +61,7 @@ pub mod error;
 
 use std::collections::HashMap;
 use std::fmt;
-use std::thread::spawn;
+use std::thread;
 use std::sync::Arc;
 
 pub use irc::client::prelude::*;
@@ -229,6 +229,8 @@ impl ThreadedPlugins {
         self.plugins.remove(&name.to_lowercase()).map(|_| ())
     }
 
+    /// Runs the execute functions on all plugins.
+    /// Any errors that occur are printed right away.
     pub fn execute_plugins(&mut self, client: &IrcClient, message: Message) {
         let message = Arc::new(message);
 
@@ -250,11 +252,17 @@ impl ThreadedPlugins {
                     let client = client.clone();
 
                     // Execute the plugin in another thread
-                    spawn(move || {
-                        if let Err(e) = plugin.execute_threaded(&client, &message) {
-                            log_error(e);
-                        };
-                    });
+                    if let Err(e) = thread::Builder::new()
+                        .name(name)
+                        .spawn(move || {
+                            if let Err(e) = plugin.execute_threaded(&client, &message) {
+                                log_error(e);
+                            };
+                        })
+                        .context(ErrorKind::ThreadSpawn)
+                    {
+                        log_error(e.into());
+                    }
                 }
             }
         }
@@ -275,11 +283,14 @@ impl ThreadedPlugins {
             // Clone for the move - the client uses an Arc internally
             let client = client.clone();
             let plugin = Arc::clone(plugin);
-            spawn(move || {
-                if let Err(e) = plugin.command(&client, command) {
-                    log_error(e);
-                };
-            });
+            thread::Builder::new()
+                .name(name)
+                .spawn(move || {
+                    if let Err(e) = plugin.command(&client, command) {
+                        log_error(e);
+                    };
+                })
+                .context(ErrorKind::ThreadSpawn)?;
         }
 
         Ok(())

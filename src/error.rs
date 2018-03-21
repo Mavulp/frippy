@@ -17,6 +17,10 @@ pub enum ErrorKind {
     #[fail(display = "A connection error occured")]
     Connection,
 
+    /// Thread spawn error
+    #[fail(display = "Failed to spawn thread")]
+    ThreadSpawn,
+
     /// A Url error
     #[fail(display = "A Url error has occured")]
     Url,

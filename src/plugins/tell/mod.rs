@@ -172,8 +172,8 @@ impl<T: Database> Tell<T> {
     }
 
     fn help(&self) -> &str {
-        "usage: {} tell user message\r\n\
-         example: {0} tell Foobar Hello!"
+        "usage: tell user message\r\n\
+         example: tell Foobar Hello!"
     }
 }
 

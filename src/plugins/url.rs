@@ -35,6 +35,28 @@ impl Url {
         Some(captures.get(2)?.as_str().to_owned())
     }
 
+
+    fn get_ogtitle<'a>(&self, body: &str) -> Result<String, UrlError> {
+        let title = body.find("property=\"og:title\"")
+            .map(|tag| {
+                body[tag..]
+                    .find("content=\"")
+                    .map(|offset| tag + offset + 9)
+                    .map(|start| {
+                        body[start..]
+                            .find("\"")
+                            .map(|offset| start + offset)
+                            .map(|end| &body[start..end])
+                    })
+            })
+            .and_then(|s| s.and_then(|s| s))
+            .ok_or(ErrorKind::MissingTitle)?;
+
+        debug!("Title: {:?}", title);
+
+        htmlescape::decode_html(title).map_err(|_| ErrorKind::HtmlDecoding.into())
+    }
+
     fn get_title<'a>(&self, body: &str) -> Result<String, UrlError> {
         let title = body.find("<title")
             .map(|tag| {
@@ -60,7 +82,14 @@ impl Url {
         let url = self.grep_url(text).ok_or(ErrorKind::MissingUrl)?;
         let body = utils::download(&url, Some(self.max_kib)).context(ErrorKind::Download)?;
 
-        let title = self.get_title(&body)?;
+        let title = match self.get_ogtitle(&body) {
+            Ok(t) => t,
+            Err(e) => if e.kind() == ErrorKind::MissingTitle {
+                self.get_title(&body)?
+            } else {
+                Err(e)?
+            }
+        };
 
         Ok(title.trim().replace('\n', "|").replace('\r', "|"))
     }

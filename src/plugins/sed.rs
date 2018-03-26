@@ -63,7 +63,7 @@ impl Sed {
         let mut case_insens = false;
         let mut ign_whitespace = false;
         let mut swap_greed = false;
-        let mut disable_unicode = false;
+        let mut enable_unicode = true;
 
         let captures = RE.captures(message).unwrap();
         debug!("{:?}", captures);
@@ -78,13 +78,13 @@ impl Sed {
             case_insens = flags.contains('i');
             ign_whitespace = flags.contains('x');
             swap_greed = flags.contains('U');
-            disable_unicode = !flags.contains('u');
+            enable_unicode = !flags.contains('u');
         }
 
         let user_re = RegexBuilder::new(&first)
             .case_insensitive(case_insens)
             .ignore_whitespace(ign_whitespace)
-            .unicode(disable_unicode)
+            .unicode(enable_unicode)
             .swap_greed(swap_greed)
             .build()
             .context(ErrorKind::InvalidRegex)?;
@@ -120,7 +120,13 @@ impl Plugin for Sed {
                 if RE.is_match(content) {
                     let result = match self.run_regex(channel, content) {
                         Ok(msg) => client.send_privmsg(channel, &msg),
-                        Err(e) => client.send_notice(channel, &e.to_string()),
+                        Err(e) => match e.kind() {
+                            ErrorKind::InvalidRegex => {
+                                let err = e.cause().unwrap().to_string();
+                                client.send_notice(channel, &err.replace('\n', "\r\n"))
+                            }
+                            _ => client.send_notice(channel, &e.to_string()),
+                        },
                     };
 
                     match result {

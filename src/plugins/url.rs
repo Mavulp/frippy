@@ -5,100 +5,146 @@ use irc::client::prelude::*;
 use regex::Regex;
 
 use plugin::*;
-use utils;
+use utils::Url;
 
 use self::error::*;
-use error::FrippyError;
 use error::ErrorKind as FrippyErrorKind;
+use error::FrippyError;
 use failure::Fail;
 use failure::ResultExt;
 
 lazy_static! {
-    static ref RE: Regex = Regex::new(r"(^|\s)(https?://\S+)").unwrap();
+    static ref URL_RE: Regex = Regex::new(r"(^|\s)(https?://\S+)").unwrap();
+    static ref WORD_RE: Regex = Regex::new(r"(\w+)").unwrap();
 }
 
 #[derive(PluginName, Debug)]
-pub struct Url {
+pub struct UrlTitles {
     max_kib: usize,
 }
 
-impl Url {
-    /// If a file is larger than `max_kib` KiB the download is stopped
-    pub fn new(max_kib: usize) -> Url {
-        Url { max_kib: max_kib }
-    }
+#[derive(Clone, Debug)]
+struct Title(String);
 
-    fn grep_url(&self, msg: &str) -> Option<String> {
-        let captures = RE.captures(msg)?;
-        debug!("Url captures: {:?}", captures);
-
-        Some(captures.get(2)?.as_str().to_owned())
-    }
-
-
-    fn get_ogtitle<'a>(&self, body: &str) -> Result<String, UrlError> {
-        let title = body.find("property=\"og:title\"")
-            .map(|tag| {
-                body[tag..]
-                    .find("content=\"")
-                    .map(|offset| tag + offset + 9)
-                    .map(|start| {
-                        body[start..]
-                            .find("\"")
-                            .map(|offset| start + offset)
-                            .map(|end| &body[start..end])
-                    })
-            })
-            .and_then(|s| s.and_then(|s| s))
-            .ok_or(ErrorKind::MissingTitle)?;
-
-        debug!("Title: {:?}", title);
-
-        htmlescape::decode_html(title).map_err(|_| ErrorKind::HtmlDecoding.into())
-    }
-
-    fn get_title<'a>(&self, body: &str) -> Result<String, UrlError> {
-        let title = body.find("<title")
-            .map(|tag| {
-                body[tag..]
-                    .find('>')
-                    .map(|offset| tag + offset + 1)
-                    .map(|start| {
-                        body[start..]
-                            .find("</title>")
-                            .map(|offset| start + offset)
-                            .map(|end| &body[start..end])
-                    })
-            })
-            .and_then(|s| s.and_then(|s| s))
-            .ok_or(ErrorKind::MissingTitle)?;
-
-        debug!("Title: {:?}", title);
-
-        htmlescape::decode_html(title).map_err(|_| ErrorKind::HtmlDecoding.into())
-    }
-
-    fn url(&self, text: &str) -> Result<String, UrlError> {
-        let url = self.grep_url(text).ok_or(ErrorKind::MissingUrl)?;
-        let body = utils::download(&url, Some(self.max_kib)).context(ErrorKind::Download)?;
-
-        let title = match self.get_ogtitle(&body) {
-            Ok(t) => t,
-            Err(e) => if e.kind() == ErrorKind::MissingTitle {
-                self.get_title(&body)?
-            } else {
-                Err(e)?
-            }
-        };
-
-        Ok(title.trim().replace('\n', "|").replace('\r', "|"))
+impl From<String> for Title {
+    fn from(title: String) -> Self {
+        Title(title)
     }
 }
 
-impl Plugin for Url {
+impl From<Title> for String {
+    fn from(title: Title) -> Self {
+        title.0
+    }
+}
+
+impl Title {
+    fn find_by_delimiters(body: &str, delimiters: [&str; 3]) -> Result<Self, UrlError> {
+        let title = body.find(delimiters[0])
+            .map(|tag| {
+                body[tag..]
+                    .find(delimiters[1])
+                    .map(|offset| tag + offset + delimiters[1].len())
+                    .map(|start| {
+                        body[start..]
+                            .find(delimiters[2])
+                            .map(|offset| start + offset)
+                            .map(|end| &body[start..end])
+                    })
+            })
+            .and_then(|s| s.and_then(|s| s))
+            .ok_or(ErrorKind::MissingTitle)?;
+
+        debug!("delimiters: {:?}", delimiters);
+        debug!("title: {:?}", title);
+
+        htmlescape::decode_html(title)
+            .map(|t| t.into())
+            .map_err(|_| ErrorKind::HtmlDecoding.into())
+    }
+
+    fn find_ogtitle<'a>(body: &str) -> Result<Self, UrlError> {
+        Self::find_by_delimiters(body, ["property=\"og:title\"", "content=\"", "\""])
+    }
+
+    fn find_title<'a>(body: &str) -> Result<Self, UrlError> {
+        Self::find_by_delimiters(body, ["<title", ">", "</title>"])
+    }
+
+    // TODO Improve logic
+    fn is_useful(&self, url: &str) -> bool {
+        for word in WORD_RE.find_iter(&self.0) {
+            let w = word.as_str().to_lowercase();
+            if w.len() > 2 && !url.to_lowercase().contains(&w) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    fn into_useful_title<'a>(self, url: &str) -> Result<Self, UrlError> {
+        if self.is_useful(url) {
+            Ok(self)
+        } else {
+            Err(ErrorKind::UselessTitle)?
+        }
+    }
+
+    fn clean_up(self) -> Self {
+        self.0.trim().replace('\n', "|").replace('\r', "|").into()
+    }
+
+    pub fn find_useful_ogtitle<'a>(body: &str, url: &str) -> Result<Self, UrlError> {
+        Self::find_ogtitle(body)
+            .and_then(|t| t.into_useful_title(url))
+            .map(|t| t.clean_up())
+    }
+
+    pub fn find_useful_title<'a>(body: &str, url: &str) -> Result<Self, UrlError> {
+        Self::find_title(body)
+            .and_then(|t| t.into_useful_title(url))
+            .map(|t| t.clean_up())
+    }
+}
+
+impl UrlTitles {
+    /// If a file is larger than `max_kib` KiB the download is stopped
+    pub fn new(max_kib: usize) -> Self {
+        UrlTitles { max_kib: max_kib }
+    }
+
+    fn grep_url<'a>(&self, msg: &'a str) -> Option<Url<'a>> {
+        let captures = URL_RE.captures(msg)?;
+        debug!("Url captures: {:?}", captures);
+
+        Some(captures.get(2)?.as_str().into())
+    }
+
+    fn url(&self, text: &str) -> Result<String, UrlError> {
+        let url = self.grep_url(text)
+            .ok_or(ErrorKind::MissingUrl)?
+            .max_kib(self.max_kib);
+        let body = url.request().context(ErrorKind::Download)?;
+
+        let title = match Title::find_useful_ogtitle(&body, url.as_str()) {
+            Ok(t) => t,
+            Err(e) => match e.kind() {
+                ErrorKind::MissingTitle | ErrorKind::UselessTitle => {
+                    Title::find_useful_title(&body, url.as_str())?
+                }
+                _ => Err(e)?,
+            },
+        };
+
+        Ok(title.into())
+    }
+}
+
+impl Plugin for UrlTitles {
     fn execute(&self, _: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::PRIVMSG(_, ref msg) => if RE.is_match(msg) {
+            Command::PRIVMSG(_, ref msg) => if URL_RE.is_match(msg) {
                 ExecutionStatus::RequiresThread
             } else {
                 ExecutionStatus::Done
@@ -150,6 +196,10 @@ pub mod error {
         /// Missing title error
         #[fail(display = "No title was found")]
         MissingTitle,
+
+        /// Useless title error
+        #[fail(display = "Title was not helpful")]
+        UselessTitle,
 
         /// Html decoding error
         #[fail(display = "Failed to decode Html characters")]

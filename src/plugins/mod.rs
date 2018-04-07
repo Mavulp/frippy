@@ -1,9 +1,9 @@
 //! Collection of plugins included
-pub mod help;
-pub mod url;
-pub mod sed;
-pub mod emoji;
-pub mod tell;
 pub mod currency;
+pub mod emoji;
 pub mod factoids;
+pub mod help;
 pub mod keepnick;
+pub mod sed;
+pub mod tell;
+pub mod url;

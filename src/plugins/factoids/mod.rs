@@ -1,13 +1,13 @@
 extern crate rlua;
 
+use self::rlua::prelude::*;
+use antidote::RwLock;
+use irc::client::prelude::*;
 use std::fmt;
 use std::str::FromStr;
-use self::rlua::prelude::*;
-use irc::client::prelude::*;
-use antidote::RwLock;
 
-use time;
 use chrono::NaiveDateTime;
+use time;
 
 use plugin::*;
 pub mod database;
@@ -15,11 +15,12 @@ use self::database::Database;
 
 mod utils;
 use self::utils::*;
+use utils::Url;
 
-use failure::ResultExt;
+use self::error::*;
 use error::ErrorKind as FrippyErrorKind;
 use error::FrippyError;
-use self::error::*;
+use failure::ResultExt;
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
@@ -52,7 +53,8 @@ impl<T: Database> Factoids<T> {
             created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
         };
 
-        Ok(self.factoids.write()
+        Ok(self.factoids
+            .write()
             .insert_factoid(&factoid)
             .map(|()| "Successfully added!")?)
     }
@@ -75,7 +77,10 @@ impl<T: Database> Factoids<T> {
 
         let name = command.tokens.remove(0);
         let url = &command.tokens[0];
-        let content = ::utils::download(url, Some(1024)).context(ErrorKind::Download)?;
+        let content = Url::from(url.as_ref())
+            .max_kib(1024)
+            .request()
+            .context(ErrorKind::Download)?;
 
         Ok(self.create_factoid(&name, &content, &command.source)?)
     }
@@ -118,7 +123,8 @@ impl<T: Database> Factoids<T> {
             }
         };
 
-        let factoid = self.factoids.read()
+        let factoid = self.factoids
+            .read()
             .get_factoid(name, idx)
             .context(ErrorKind::NotFound)?;
 

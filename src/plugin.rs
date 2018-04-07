@@ -1,8 +1,8 @@
 //! Definitions required for every `Plugin`
 use std::fmt;
 
-use irc::client::prelude::*;
 use error::FrippyError;
+use irc::client::prelude::*;
 
 /// Describes if a [`Plugin`](trait.Plugin.html) is done working on a
 /// [`Message`](../../irc/proto/message/struct.Message.html) or if another thread is required.

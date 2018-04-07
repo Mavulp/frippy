@@ -21,25 +21,25 @@ extern crate failure;
 #[macro_use]
 extern crate log;
 
+use log::{Level, LevelFilter, Metadata, Record};
+use std::collections::HashMap;
 #[cfg(feature = "mysql")]
 use std::sync::Arc;
-use std::collections::HashMap;
-use log::{Level, LevelFilter, Metadata, Record};
 
-use irc::client::reactor::IrcReactor;
 use glob::glob;
+use irc::client::reactor::IrcReactor;
 
-use frippy::plugins::help::Help;
-use frippy::plugins::url::Url;
-use frippy::plugins::sed::Sed;
-use frippy::plugins::emoji::Emoji;
-use frippy::plugins::tell::Tell;
 use frippy::plugins::currency::Currency;
-use frippy::plugins::keepnick::KeepNick;
+use frippy::plugins::emoji::Emoji;
 use frippy::plugins::factoids::Factoids;
+use frippy::plugins::help::Help;
+use frippy::plugins::keepnick::KeepNick;
+use frippy::plugins::sed::Sed;
+use frippy::plugins::tell::Tell;
+use frippy::plugins::url::UrlTitles;
 
-use frippy::Config;
 use failure::Error;
+use frippy::Config;
 
 #[cfg(feature = "mysql")]
 embed_migrations!();
@@ -136,7 +136,7 @@ fn run() -> Result<(), Error> {
 
         let mut bot = frippy::Bot::new(&prefix);
         bot.add_plugin(Help::new());
-        bot.add_plugin(Url::new(1024));
+        bot.add_plugin(UrlTitles::new(1024));
         bot.add_plugin(Sed::new(60));
         bot.add_plugin(Emoji::new());
         bot.add_plugin(Currency::new());

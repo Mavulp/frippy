@@ -1,18 +1,18 @@
-use irc::client::prelude::*;
 use antidote::RwLock;
+use irc::client::prelude::*;
 
-use time;
-use std::time::Duration;
 use chrono::NaiveDateTime;
 use humantime::format_duration;
+use std::time::Duration;
+use time;
 
 use plugin::*;
 
-use failure::Fail;
-use failure::ResultExt;
+use self::error::*;
 use error::ErrorKind as FrippyErrorKind;
 use error::FrippyError;
-use self::error::*;
+use failure::Fail;
+use failure::ResultExt;
 
 pub mod database;
 use self::database::Database;
@@ -98,7 +98,8 @@ impl<T: Database> Tell<T> {
     }
 
     fn on_namelist(&self, client: &IrcClient, channel: &str) -> Result<(), FrippyError> {
-        let receivers = self.tells.read()
+        let receivers = self.tells
+            .read()
             .get_receivers()
             .context(FrippyErrorKind::Tell)?;
 

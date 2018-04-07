@@ -1,20 +1,20 @@
 #[cfg(feature = "mysql")]
 extern crate dotenv;
 
+use std::collections::HashMap;
 #[cfg(feature = "mysql")]
 use std::sync::Arc;
-use std::collections::HashMap;
 
+#[cfg(feature = "mysql")]
+use diesel::mysql::MysqlConnection;
 #[cfg(feature = "mysql")]
 use diesel::prelude::*;
 #[cfg(feature = "mysql")]
-use diesel::mysql::MysqlConnection;
+use failure::ResultExt;
 #[cfg(feature = "mysql")]
 use r2d2::Pool;
 #[cfg(feature = "mysql")]
 use r2d2_diesel::ConnectionManager;
-#[cfg(feature = "mysql")]
-use failure::ResultExt;
 
 use chrono::NaiveDateTime;
 
@@ -124,8 +124,8 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     }
 
     fn delete_factoid(&mut self, name: &str, idx: i32) -> Result<(), FactoidsError> {
-        use diesel;
         use self::factoids::columns;
+        use diesel;
 
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         match diesel::delete(

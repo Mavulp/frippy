@@ -1,17 +1,17 @@
-use std::collections::HashMap;
+use antidote::RwLock;
 use circular_queue::CircularQueue;
 use regex::{Regex, RegexBuilder};
-use antidote::RwLock;
+use std::collections::HashMap;
 
 use irc::client::prelude::*;
 
 use plugin::*;
 
-use failure::Fail;
-use failure::ResultExt;
+use self::error::*;
 use error::ErrorKind as FrippyErrorKind;
 use error::FrippyError;
-use self::error::*;
+use failure::Fail;
+use failure::ResultExt;
 
 lazy_static! {
     static ref RE: Regex = Regex::new(r"^s/((?:\\/|[^/])+)/((?:\\/|[^/])*)/(?:(\w+))?\s*$").unwrap();

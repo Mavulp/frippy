@@ -46,6 +46,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 
+extern crate antidote;
 extern crate chrono;
 extern crate circular_queue;
 extern crate humantime;
@@ -53,22 +54,21 @@ extern crate irc;
 extern crate regex;
 extern crate reqwest;
 extern crate time;
-extern crate antidote;
 
+pub mod error;
 pub mod plugin;
 pub mod plugins;
 pub mod utils;
-pub mod error;
 
 use std::collections::HashMap;
 use std::fmt;
-use std::thread;
 use std::sync::Arc;
+use std::thread;
 
-pub use irc::client::prelude::*;
-pub use irc::error::IrcError;
 use error::*;
 use failure::ResultExt;
+pub use irc::client::prelude::*;
+pub use irc::error::IrcError;
 
 use plugin::*;
 
@@ -80,11 +80,11 @@ pub struct Bot<'a> {
 }
 
 impl<'a> Bot<'a> {
-    /// Creates a `Bot` without any plugins.  
+    /// Creates a `Bot` without any plugins.
     /// By itself the bot only responds to a few simple CTCP commands
     /// defined per config file.
     /// Any other functionality has to be provided by plugins
-    /// which need to implement [`Plugin`](plugin/trait.Plugin.html).  
+    /// which need to implement [`Plugin`](plugin/trait.Plugin.html).
     /// To send commands to a plugin
     /// the message has to start with the plugin's name prefixed by `cmd_prefix`.
     ///

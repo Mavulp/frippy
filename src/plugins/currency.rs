@@ -13,8 +13,8 @@ use self::serde_json::Value;
 
 use plugin::*;
 
-use error::FrippyError;
 use error::ErrorKind as FrippyErrorKind;
+use error::FrippyError;
 use failure::ResultExt;
 
 #[derive(PluginName, Default, Debug)]

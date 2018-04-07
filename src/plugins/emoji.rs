@@ -6,8 +6,8 @@ use irc::client::prelude::*;
 
 use plugin::*;
 
-use error::FrippyError;
 use error::ErrorKind as FrippyErrorKind;
+use error::FrippyError;
 use failure::Fail;
 use failure::ResultExt;
 

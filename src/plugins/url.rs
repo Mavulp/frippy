@@ -72,38 +72,29 @@ impl Title {
     }
 
     // TODO Improve logic
-    fn is_useful(&self, url: &str) -> bool {
+    pub fn usefulness(&self, url: &str) -> usize {
+        let mut usefulness = 0;
         for word in WORD_RE.find_iter(&self.0) {
             let w = word.as_str().to_lowercase();
             if w.len() > 2 && !url.to_lowercase().contains(&w) {
-                return true;
+                usefulness += 1;
             }
         }
 
-        return false;
-    }
-
-    fn into_useful_title<'a>(self, url: &str) -> Result<Self, UrlError> {
-        if self.is_useful(url) {
-            Ok(self)
-        } else {
-            Err(ErrorKind::UselessTitle)?
-        }
+        usefulness
     }
 
     fn clean_up(self) -> Self {
         self.0.trim().replace('\n', "|").replace('\r', "|").into()
     }
 
-    pub fn find_useful_ogtitle<'a>(body: &str, url: &str) -> Result<Self, UrlError> {
+    pub fn find_clean_ogtitle<'a>(body: &str, url: &str) -> Result<Self, UrlError> {
         Self::find_ogtitle(body)
-            .and_then(|t| t.into_useful_title(url))
             .map(|t| t.clean_up())
     }
 
-    pub fn find_useful_title<'a>(body: &str, url: &str) -> Result<Self, UrlError> {
+    pub fn find_clean_title<'a>(body: &str, url: &str) -> Result<Self, UrlError> {
         Self::find_title(body)
-            .and_then(|t| t.into_useful_title(url))
             .map(|t| t.clean_up())
     }
 }
@@ -127,14 +118,20 @@ impl UrlTitles {
             .max_kib(self.max_kib);
         let body = url.request().context(ErrorKind::Download)?;
 
-        let title = match Title::find_useful_ogtitle(&body, url.as_str()) {
-            Ok(t) => t,
-            Err(e) => match e.kind() {
-                ErrorKind::MissingTitle | ErrorKind::UselessTitle => {
-                    Title::find_useful_title(&body, url.as_str())?
+        let title = Title::find_clean_title(&body, url.as_str());
+        let og_title = Title::find_clean_ogtitle(&body, url.as_str());
+
+        let title = match (title, og_title) {
+            (Ok(title), Ok(og_title)) => {
+                if title.usefulness(url.as_str()) > og_title.usefulness(url.as_str()) {
+                    title
+                } else {
+                    og_title
                 }
-                _ => Err(e)?,
             },
+            (Ok(title), _) => title,
+            (_, Ok(title)) => title,
+            (Err(e), _) => Err(e)?,
         };
 
         Ok(title.into())
@@ -196,10 +193,6 @@ pub mod error {
         /// Missing title error
         #[fail(display = "No title was found")]
         MissingTitle,
-
-        /// Useless title error
-        #[fail(display = "Title was not helpful")]
-        UselessTitle,
 
         /// Html decoding error
         #[fail(display = "Failed to decode Html characters")]

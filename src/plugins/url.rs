@@ -24,11 +24,11 @@ pub struct UrlTitles {
 }
 
 #[derive(Clone, Debug)]
-struct Title(String);
+struct Title(String, Option<usize>);
 
 impl From<String> for Title {
     fn from(title: String) -> Self {
-        Title(title)
+        Title(title, None)
     }
 }
 
@@ -72,7 +72,7 @@ impl Title {
     }
 
     // TODO Improve logic
-    pub fn usefulness(&self, url: &str) -> usize {
+    fn get_usefulness(self, url: &str) -> Self {
         let mut usefulness = 0;
         for word in WORD_RE.find_iter(&self.0) {
             let w = word.as_str().to_lowercase();
@@ -81,21 +81,25 @@ impl Title {
             }
         }
 
-        usefulness
+        Title(self.0, Some(usefulness))
+    }
+
+    pub fn usefulness(&self) -> usize {
+        self.1.expect("Usefulness should be calculated already")
     }
 
     fn clean_up(self) -> Self {
-        self.0.trim().replace('\n', "|").replace('\r', "|").into()
+        Title(self.0.trim().replace('\n', "|").replace('\r', "|"), self.1)
     }
 
     pub fn find_clean_ogtitle<'a>(body: &str, url: &str) -> Result<Self, UrlError> {
-        Self::find_ogtitle(body)
-            .map(|t| t.clean_up())
+        let title = Self::find_ogtitle(body)?;
+        Ok(title.get_usefulness(url).clean_up())
     }
 
     pub fn find_clean_title<'a>(body: &str, url: &str) -> Result<Self, UrlError> {
-        Self::find_title(body)
-            .map(|t| t.clean_up())
+        let title = Self::find_title(body)?;
+        Ok(title.get_usefulness(url).clean_up())
     }
 }
 
@@ -123,7 +127,7 @@ impl UrlTitles {
 
         let title = match (title, og_title) {
             (Ok(title), Ok(og_title)) => {
-                if title.usefulness(url.as_str()) > og_title.usefulness(url.as_str()) {
+                if title.usefulness() > og_title.usefulness() {
                     title
                 } else {
                     og_title
@@ -134,7 +138,11 @@ impl UrlTitles {
             (Err(e), _) => Err(e)?,
         };
 
-        Ok(title.into())
+        if title.usefulness() > 1 {
+            Ok(title.into())
+        } else {
+            Err(ErrorKind::UselessTitle.into())
+        }
     }
 }
 
@@ -193,6 +201,10 @@ pub mod error {
         /// Missing title error
         #[fail(display = "No title was found")]
         MissingTitle,
+
+        /// Useless title error
+        #[fail(display = "The titles found were not useful enough")]
+        UselessTitle,
 
         /// Html decoding error
         #[fail(display = "Failed to decode Html characters")]

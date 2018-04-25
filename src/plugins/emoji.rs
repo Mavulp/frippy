@@ -39,12 +39,17 @@ impl Emoji {
         Emoji {}
     }
 
-    fn emoji(&self, content: &str) -> String {
-        self.return_emojis(content)
-            .iter()
-            .map(|e| e.to_string())
-            .collect::<Vec<String>>()
-            .join(", ")
+    fn emoji(&self, content: &str) -> Option<String> {
+        let emojis = self.return_emojis(content);
+        if emojis.is_empty() {
+            None
+        } else {
+            Some(emojis
+                .iter()
+                .map(|e| e.to_string())
+                .collect::<Vec<String>>()
+                .join(", "))
+        }
     }
 
     fn return_emojis(&self, string: &str) -> Vec<EmojiHandle> {
@@ -100,11 +105,17 @@ impl Emoji {
 impl Plugin for Emoji {
     fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::PRIVMSG(_, ref content) => match client
-                .send_privmsg(message.response_target().unwrap(), &self.emoji(content))
-            {
-                Ok(_) => ExecutionStatus::Done,
-                Err(e) => ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into()),
+            Command::PRIVMSG(_, ref content) => {
+                if let Some(emojis) = self.emoji(content) {
+                    match client
+                        .send_privmsg(message.response_target().unwrap(), &emojis)
+                        {
+                            Ok(_) => ExecutionStatus::Done,
+                            Err(e) => ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into()),
+                        }
+                } else {
+                    ExecutionStatus::Done
+                }
             },
             _ => ExecutionStatus::Done,
         }
@@ -124,8 +135,7 @@ impl Plugin for Emoji {
     }
 
     fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
-        let emojis = self.emoji(&command.tokens[0]);
-        if emojis.is_empty() {
+        if let Some(emojis) = self.emoji(&command.tokens[0]) {
             Ok(emojis)
         } else {
             Err(String::from("No emojis were found."))

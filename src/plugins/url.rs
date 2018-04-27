@@ -55,8 +55,7 @@ impl Title {
             .and_then(|s| s.and_then(|s| s))
             .ok_or(ErrorKind::MissingTitle)?;
 
-        debug!("delimiters: {:?}", delimiters);
-        debug!("title: {:?}", title);
+        debug!("Found title {:?} with delimiters {:?}", title, delimiters);
 
         htmlescape::decode_html(title)
             .map(|t| t.into())
@@ -132,7 +131,7 @@ impl UrlTitles {
                 } else {
                     og_title
                 }
-            },
+            }
             (Ok(title), _) => title,
             (_, Ok(title)) => title,
             (Err(e), _) => Err(e)?,
@@ -159,7 +158,7 @@ impl Plugin for UrlTitles {
     }
 
     fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError> {
-        Ok(match message.command {
+        match message.command {
             Command::PRIVMSG(_, ref content) => match self.url(content) {
                 Ok(title) => client
                     .send_privmsg(message.response_target().unwrap(), &title)
@@ -167,7 +166,9 @@ impl Plugin for UrlTitles {
                 Err(e) => Err(e).context(FrippyErrorKind::Url)?,
             },
             _ => (),
-        })
+        }
+
+        Ok(())
     }
 
     fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {

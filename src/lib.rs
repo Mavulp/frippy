@@ -258,7 +258,9 @@ impl ThreadedPlugins {
                         .spawn(move || {
                             if let Err(e) = plugin.execute_threaded(&client, &message) {
                                 log_error(e);
-                            };
+                            } else {
+                                debug!("{} sent response from thread", plugin.name());
+                            }
                         })
                         .context(ErrorKind::ThreadSpawn)
                     {

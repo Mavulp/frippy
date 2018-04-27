@@ -4,6 +4,7 @@
 extern crate frippy;
 extern crate glob;
 extern crate irc;
+extern crate log4rs;
 extern crate time;
 
 #[cfg(feature = "mysql")]
@@ -21,7 +22,6 @@ extern crate failure;
 #[macro_use]
 extern crate log;
 
-use log::{Level, LevelFilter, Metadata, Record};
 use std::collections::HashMap;
 #[cfg(feature = "mysql")]
 use std::sync::Arc;
@@ -44,58 +44,27 @@ use frippy::Config;
 #[cfg(feature = "mysql")]
 embed_migrations!();
 
-struct Logger;
-
-impl log::Log for Logger {
-    fn enabled(&self, metadata: &Metadata) -> bool {
-        metadata.target().contains("frippy")
-    }
-
-    fn log(&self, record: &Record) {
-        if self.enabled(record.metadata()) {
-            if record.metadata().level() >= Level::Debug {
-                println!(
-                    "[{}]({}) {} -> {}",
-                    time::now().rfc822(),
-                    record.level(),
-                    record.target(),
-                    record.args()
-                );
-            } else {
-                println!(
-                    "[{}]({}) {}",
-                    time::now().rfc822(),
-                    record.level(),
-                    record.args()
-                );
-            }
-        }
-    }
-
-    fn flush(&self) {}
-}
-
-static LOGGER: Logger = Logger;
-
 fn main() {
+    if let Err(e) = log4rs::init_file("log.yml", Default::default()) {
+        use log4rs::Error;
+        match e {
+            Error::Log(e) => eprintln!("Log4rs error: {}", e),
+            Error::Log4rs(e) => eprintln!("Failed to parse \"log.yml\" as log4rs config: {}", e),
+        }
+
+        return;
+    }
+
     // Print any errors that caused frippy to shut down
     if let Err(e) = run() {
         let text = e.causes()
             .skip(1)
             .fold(format!("{}", e), |acc, err| format!("{}: {}", acc, err));
         error!("{}", text);
-    };
+    }
 }
 
 fn run() -> Result<(), Error> {
-    log::set_max_level(if cfg!(debug_assertions) {
-        LevelFilter::Debug
-    } else {
-        LevelFilter::Info
-    });
-
-    log::set_logger(&LOGGER).unwrap();
-
     // Load all toml files in the configs directory
     let mut configs = Vec::new();
     for toml in glob("configs/*.toml").unwrap() {

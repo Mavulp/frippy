@@ -90,7 +90,7 @@ sandbox_env.eval = eval
 sandbox_env.sleep = safesleep
 
 -- Check if the factoid timed out
-function checktime(event, line)
+function checktime()
   if os.time() - time >= timeout then
     error("Timed out after " .. timeout .. " seconds", 0)
   else
@@ -99,12 +99,24 @@ function checktime(event, line)
   end
 end
 
+-- Check if the factoid uses too much memory
+function checkmem()
+  if collectgarbage("count") > maxmem then
+    error("Factoid used over " .. maxmem .. " kbyte of ram")
+  end
+end
+
 local f, e = load(factoid, nil, nil, sandbox_env)
 
 -- Add timeout hook
 time = os.time()
+-- The timeout is defined in seconds
 timeout = 30
 debug.sethook(checktime, "l")
+-- Add memory check hook
+-- The max memory is defined in kilobytes
+maxmem = 1000
+debug.sethook(checkmem, "l")
 
 if f then
   f()

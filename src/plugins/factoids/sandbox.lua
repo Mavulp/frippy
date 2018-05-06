@@ -13,14 +13,29 @@ function sendln(text)
   table.insert(output, "")
 end
 
+function trim(s)
+  local from = s:match"^%s*()"
+  return from > #s and "" or s:match(".*%S", from)
+end
+
+trimmed_input = trim(input)
+
+if trimmed_input == "" then
+    ioru = user
+else
+    ioru = trimmed_input
+end
+
 local sandbox_env = {
   print = send,
   println = sendln,
+  trim = trim,
   eval = nil,
   sleep = nil,
   args = args,
   input = input,
   user = user,
+  ioru = ioru,
   channel = channel,
   request = download,
   string = string,
@@ -64,11 +79,11 @@ end
 -- Only sleeps for 1 second at a time
 -- This ensures that the timeout check can still run
 function safesleep(dur)
-    while dur > 1000 do
-        dur = dur - 1000
-        sleep(1000)
-    end
-    sleep(dur)
+  while dur > 1000 do
+    dur = dur - 1000
+    sleep(1000)
+  end
+  sleep(dur)
 end
 
 sandbox_env.eval = eval

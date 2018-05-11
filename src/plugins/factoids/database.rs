@@ -51,10 +51,10 @@ pub trait Database: Send + Sync {
 impl Database for HashMap<(String, i32), Factoid> {
     fn insert_factoid(&mut self, factoid: &NewFactoid) -> Result<(), FactoidsError> {
         let factoid = Factoid {
-            name: String::from(factoid.name),
+            name: factoid.name.to_owned(),
             idx: factoid.idx,
-            content: factoid.content.to_string(),
-            author: factoid.author.to_string(),
+            content: factoid.content.to_owned(),
+            author: factoid.author.to_owned(),
             created: factoid.created,
         };
 
@@ -66,13 +66,13 @@ impl Database for HashMap<(String, i32), Factoid> {
     }
 
     fn get_factoid(&self, name: &str, idx: i32) -> Result<Factoid, FactoidsError> {
-        Ok(self.get(&(String::from(name), idx))
+        Ok(self.get(&(name.to_owned(), idx))
             .cloned()
             .ok_or(ErrorKind::NotFound)?)
     }
 
     fn delete_factoid(&mut self, name: &str, idx: i32) -> Result<(), FactoidsError> {
-        match self.remove(&(String::from(name), idx)) {
+        match self.remove(&(name.to_owned(), idx)) {
             Some(_) => Ok(()),
             None => Err(ErrorKind::NotFound)?,
         }

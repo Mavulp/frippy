@@ -176,7 +176,10 @@ impl<T: Database> Factoids<T> {
                 } else {
                     match self.run_lua(&name, &content, &command) {
                         Ok(v) => v,
-                        Err(e) => format!("{}", e),
+                        Err(e) => match e {
+                            LuaError::CallbackError { cause, .. } => cause.to_string(),
+                            _ => e.to_string(),
+                        },
                     }
                 }
             } else {
@@ -187,12 +190,7 @@ impl<T: Database> Factoids<T> {
         }
     }
 
-    fn run_lua(
-        &self,
-        name: &str,
-        code: &str,
-        command: &PluginCommand,
-    ) -> Result<String, rlua::Error> {
+    fn run_lua(&self, name: &str, code: &str, command: &PluginCommand) -> Result<String, LuaError> {
         let args = command
             .tokens
             .iter()

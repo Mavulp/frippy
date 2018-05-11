@@ -3,20 +3,29 @@ extern crate reqwest;
 use std::thread;
 use std::time::Duration;
 
-use super::rlua::prelude::*;
+use super::rlua::Error as LuaError;
+use super::rlua::Lua;
 use utils::Url;
+use utils::error::ErrorKind::Connection;
 
-use self::LuaError::RuntimeError;
+use failure::Fail;
 
 pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
     let url = Url::from(url).max_kib(1024);
     match url.request() {
         Ok(v) => Ok(v),
-        Err(e) => Err(RuntimeError(format!(
-            "Failed to download {} - {}",
-            url.as_str(),
-            e.to_string()
-        ))),
+        Err(e) => {
+            let error = match e.kind() {
+                Connection => e.cause().unwrap().to_string(),
+                _ => e.to_string(),
+            };
+
+            Err(LuaError::RuntimeError(format!(
+                "Failed to download {} - {}",
+                url.as_str(),
+                error
+            )))
+        }
     }
 }
 

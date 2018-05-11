@@ -1,8 +1,9 @@
 use std::borrow::Cow;
 use std::io::{self, Read};
+use std::time::Duration;
 
-use reqwest::Client;
 use reqwest::header::Connection;
+use reqwest::{Client, ClientBuilder};
 
 use self::error::{DownloadError, ErrorKind};
 use failure::ResultExt;
@@ -11,6 +12,7 @@ use failure::ResultExt;
 pub struct Url<'a> {
     url: Cow<'a, str>,
     max_kib: Option<usize>,
+    timeout: Option<Duration>,
 }
 
 impl<'a> From<String> for Url<'a> {
@@ -18,6 +20,7 @@ impl<'a> From<String> for Url<'a> {
         Url {
             url: Cow::from(url),
             max_kib: None,
+            timeout: None,
         }
     }
 }
@@ -27,6 +30,7 @@ impl<'a> From<&'a str> for Url<'a> {
         Url {
             url: Cow::from(url),
             max_kib: None,
+            timeout: None,
         }
     }
 }
@@ -37,13 +41,27 @@ impl<'a> Url<'a> {
         self
     }
 
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
     /// Downloads the file and converts it to a String.
     /// Any invalid bytes are converted to a replacement character.
     ///
     /// The error indicated either a failed download or
     /// that the limit set by max_kib() was reached.
     pub fn request(&self) -> Result<String, DownloadError> {
-        let mut response = Client::new()
+        let client = if let Some(timeout) = self.timeout {
+            ClientBuilder::new()
+                .timeout(timeout)
+                .build()
+                .unwrap()
+        } else {
+            Client::new()
+        };
+
+        let mut response = client
             .get(self.url.as_ref())
             .header(Connection::close())
             .send()

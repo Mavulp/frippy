@@ -1,5 +1,7 @@
 extern crate htmlescape;
 
+use std::time::Duration;
+
 use irc::client::prelude::*;
 
 use regex::Regex;
@@ -118,7 +120,8 @@ impl UrlTitles {
     fn url(&self, text: &str) -> Result<String, UrlError> {
         let url = self.grep_url(text)
             .ok_or(ErrorKind::MissingUrl)?
-            .max_kib(self.max_kib);
+            .max_kib(self.max_kib)
+            .timeout(Duration::from_secs(5));
         let body = url.request().context(ErrorKind::Download)?;
 
         let title = Title::find_clean_title(&body, url.as_str());

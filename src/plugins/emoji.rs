@@ -11,6 +11,7 @@ use error::FrippyError;
 use failure::Fail;
 use failure::ResultExt;
 
+#[derive(Default, Debug)]
 struct EmojiHandle {
     symbol: char,
     count: i32,
@@ -44,21 +45,20 @@ impl Emoji {
         if emojis.is_empty() {
             None
         } else {
-            Some(emojis
-                .iter()
-                .map(|e| e.to_string())
-                .collect::<Vec<String>>()
-                .join(", "))
+            Some(
+                emojis
+                    .iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            )
         }
     }
 
     fn return_emojis(&self, string: &str) -> Vec<EmojiHandle> {
         let mut emojis: Vec<EmojiHandle> = Vec::new();
 
-        let mut current = EmojiHandle {
-            symbol: ' ',
-            count: 0,
-        };
+        let mut current = EmojiHandle::default();
 
         for c in string.chars() {
             if !self.is_emoji(&c) {
@@ -107,16 +107,16 @@ impl Plugin for Emoji {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
                 if let Some(emojis) = self.emoji(content) {
-                    match client
-                        .send_privmsg(message.response_target().unwrap(), &emojis)
-                        {
-                            Ok(_) => ExecutionStatus::Done,
-                            Err(e) => ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into()),
+                    match client.send_privmsg(message.response_target().unwrap(), &emojis) {
+                        Ok(_) => ExecutionStatus::Done,
+                        Err(e) => {
+                            ExecutionStatus::Err(e.context(FrippyErrorKind::Connection).into())
                         }
+                    }
                 } else {
                     ExecutionStatus::Done
                 }
-            },
+            }
             _ => ExecutionStatus::Done,
         }
     }

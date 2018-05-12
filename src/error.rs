@@ -32,4 +32,8 @@ pub enum ErrorKind {
     /// A Factoids error
     #[fail(display = "A Factoids error has occured")]
     Factoids,
+
+    /// A Remind error
+    #[fail(display = "A Remind error has occured")]
+    Remind,
 }

@@ -34,6 +34,7 @@ use frippy::plugins::emoji::Emoji;
 use frippy::plugins::factoids::Factoids;
 use frippy::plugins::help::Help;
 use frippy::plugins::keepnick::KeepNick;
+use frippy::plugins::remind::Remind;
 use frippy::plugins::sed::Sed;
 use frippy::plugins::tell::Tell;
 use frippy::plugins::url::UrlTitles;
@@ -125,11 +126,14 @@ fn run() -> Result<(), Error> {
                             let pool = Arc::new(pool);
                             bot.add_plugin(Factoids::new(pool.clone()));
                             bot.add_plugin(Tell::new(pool.clone()));
+                            // TODO Use mysql pool
+                            bot.add_plugin(Remind::new(HashMap::new()));
                             info!("Connected to MySQL server")
                         }
                         Err(e) => {
                             bot.add_plugin(Factoids::new(HashMap::new()));
                             bot.add_plugin(Tell::new(HashMap::new()));
+                            bot.add_plugin(Remind::new(HashMap::new()));
                             error!("Failed to run migrations: {}", e);
                         }
                     },
@@ -138,6 +142,7 @@ fn run() -> Result<(), Error> {
             } else {
                 bot.add_plugin(Factoids::new(HashMap::new()));
                 bot.add_plugin(Tell::new(HashMap::new()));
+                bot.add_plugin(Remind::new(HashMap::new()));
             }
         }
         #[cfg(not(feature = "mysql"))]
@@ -147,6 +152,7 @@ fn run() -> Result<(), Error> {
             }
             bot.add_plugin(Factoids::new(HashMap::new()));
             bot.add_plugin(Tell::new(HashMap::new()));
+            bot.add_plugin(Remind::new(HashMap::new()));
         }
 
         if let Some(disabled_plugins) = disabled_plugins {

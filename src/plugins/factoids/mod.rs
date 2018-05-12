@@ -24,6 +24,11 @@ use failure::ResultExt;
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
+enum FactoidResponse {
+    Public(String),
+    Private(String),
+}
+
 #[derive(PluginName)]
 pub struct Factoids<T: Database> {
     factoids: RwLock<T>,
@@ -215,6 +220,11 @@ impl<T: Database> Factoids<T> {
 
         Ok(output.join("|"))
     }
+
+    fn help(&self) -> &str {
+        "usage: factoids <subcommand>\r\n\
+         subcommands: add, fromurl, remove, info, get, exec, help"
+    }
 }
 
 impl<T: Database> Plugin for Factoids<T> {
@@ -253,6 +263,8 @@ impl<T: Database> Plugin for Factoids<T> {
     }
 
     fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), FrippyError> {
+        use self::FactoidResponse::{Private, Public};
+
         if command.tokens.is_empty() {
             return Ok(client
                 .send_notice(&command.target, "Invalid command")
@@ -264,19 +276,26 @@ impl<T: Database> Plugin for Factoids<T> {
 
         let sub_command = command.tokens.remove(0);
         let result = match sub_command.as_ref() {
-            "add" => self.add(&mut command).map(|s| s.to_owned()),
-            "fromurl" => self.add_from_url(&mut command).map(|s| s.to_owned()),
-            "remove" => self.remove(&mut command).map(|s| s.to_owned()),
-            "get" => self.get(&command),
-            "info" => self.info(&command),
-            "exec" => self.exec(command),
+            "add" => self.add(&mut command).map(|s| Private(s.to_owned())),
+            "fromurl" => self.add_from_url(&mut command)
+                .map(|s| Private(s.to_owned())),
+            "remove" => self.remove(&mut command).map(|s| Private(s.to_owned())),
+            "get" => self.get(&command).map(|s| Public(s)),
+            "info" => self.info(&command).map(|s| Public(s)),
+            "exec" => self.exec(command).map(|s| Public(s)),
+            "help" => Ok(Private(self.help().to_owned())),
             _ => Err(ErrorKind::InvalidCommand.into()),
         };
 
         Ok(match result {
-            Ok(v) => client
-                .send_privmsg(&target, &v)
-                .context(FrippyErrorKind::Connection)?,
+            Ok(v) => match v {
+                Public(m) => client
+                    .send_privmsg(&target, &m)
+                    .context(FrippyErrorKind::Connection)?,
+                Private(m) => client
+                    .send_notice(&source, &m)
+                    .context(FrippyErrorKind::Connection)?,
+            },
             Err(e) => {
                 let message = e.to_string();
                 client

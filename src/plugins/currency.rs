@@ -100,7 +100,7 @@ impl Currency {
 
     fn help(&self) -> &str {
         "usage: currency value from_currency to_currency\r\n\
-         example: {0} currency 1.5 eur usd\r\n\
+         example: currency 1.5 eur usd\r\n\
          available currencies: AUD, BGN, BRL, CAD, \
          CHF, CNY, CZK, DKK, GBP, HKD, HRK, HUF, \
          IDR, ILS, INR, JPY, KRW, MXN, MYR, NOK, \

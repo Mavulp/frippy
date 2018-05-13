@@ -161,7 +161,10 @@ impl<T: 'static + Database> Remind<T> {
 
     fn help(&self) -> &str {
         "usage: remind <subcommand>\r\n\
-         subcommands: new, list, delete, help"
+         subcommands: user, list, delete, help\r\n\
+         examples\r\n\
+         remind user foo to sleep in 1 hour\r\n\
+         remind user bar to leave early on 1.1 at 16:00 every week"
     }
 }
 
@@ -195,7 +198,7 @@ impl<T: Database> Plugin for Remind<T> {
 
         let sub_command = command.tokens.remove(0);
         let response = match sub_command.as_ref() {
-            "new" => self.set(command).map(|s| s.to_owned()),
+            "user" => self.set(command).map(|s| s.to_owned()),
             "delete" => self.delete(command).map(|s| s.to_owned()),
             "list" => self.list(&source),
             "help" => Ok(self.help().to_owned()),

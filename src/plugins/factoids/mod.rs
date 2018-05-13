@@ -267,7 +267,7 @@ impl<T: Database> Plugin for Factoids<T> {
 
         if command.tokens.is_empty() {
             return Ok(client
-                .send_notice(&command.target, "Invalid command")
+                .send_notice(&command.source, "Invalid command")
                 .context(FrippyErrorKind::Connection)?);
         }
 

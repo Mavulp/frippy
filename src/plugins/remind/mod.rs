@@ -34,7 +34,6 @@ fn get_events<T: Database>(db: &RwLock<T>, in_next: chrono::Duration) -> Vec<dat
             }
         }
 
-        debug!("Sleeping for {:?}", in_next);
         sleep(in_next.to_std().expect("Failed to convert look ahead time"));
     }
 }
@@ -81,7 +80,6 @@ fn run<T: Database>(client: &IrcClient, db: Arc<RwLock<T>>) {
             }
         }
 
-        debug!("Sleeping for {:?}", sleep_time);
         sleep(sleep_time);
         sleep_time = Duration::from_secs(120);
 

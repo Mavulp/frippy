@@ -18,12 +18,12 @@ function trim(s)
   return from > #s and "" or s:match(".*%S", from)
 end
 
-trimmed_input = trim(input)
+trimmedInput = trim(input)
 
-if trimmed_input == "" then
-    ioru = user
+if trimmedInput == "" then
+  ioru = user
 else
-    ioru = trimmed_input
+  ioru = trimmedInput
 end
 
 local sandbox_env = {

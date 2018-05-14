@@ -181,10 +181,10 @@ impl<T: 'static + Database> Remind<T> {
 
     fn help(&self) -> &str {
         "usage: remind <subcommand>\r\n\
-         subcommands: user, list, delete, help\r\n\
+         subcommands: user, me, list, delete, help\r\n\
          examples\r\n\
          remind user foo to sleep in 1 hour\r\n\
-         remind user bar to leave early on 1.1 at 16:00 every week"
+         remind me to leave early on 1.1 at 16:00 every week"
     }
 }
 

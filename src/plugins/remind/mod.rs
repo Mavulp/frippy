@@ -58,12 +58,12 @@ fn run<T: Database>(client: &IrcClient, db: Arc<RwLock<T>>) {
                     debug!("Sent reminder {:?}", event);
 
                     if let Some(repeat) = event.repeat {
-                        let next_time = event.time + chrono::Duration::seconds(repeat as i64);
+                        let next_time = event.time + chrono::Duration::seconds(repeat);
 
                         if let Err(e) = db.write().update_event_time(event.id, &next_time) {
                             error!("Failed to update reminder: {}", e);
                         } else {
-                            debug!("Updated time on: {:?}", event);
+                            debug!("Updated time");
                         }
                     } else if let Err(e) = db.write().delete_event(event.id) {
                         error!("Failed to delete reminder: {}", e);
@@ -103,32 +103,49 @@ impl<T: 'static + Database> Remind<T> {
         }
     }
 
-    fn set(&self, command: PluginCommand) -> Result<&str, RemindError> {
-        let parser = CommandParser::try_from_tokens(command.tokens)?;
+    fn user_cmd(&self, command: PluginCommand) -> Result<String, RemindError> {
+        let parser = CommandParser::parse_target(command.tokens)?;
+
+        self.set(parser, &command.source)
+    }
+
+    fn me_cmd(&self, command: PluginCommand) -> Result<String, RemindError> {
+        let source = command.source.clone();
+        let parser = CommandParser::with_target(command.tokens, command.source)?;
+
+        self.set(parser, &source)
+    }
+
+    fn set(&self, parser: CommandParser, author: &str) -> Result<String, RemindError> {
         debug!("parser: {:?}", parser);
 
-        let mut target = parser.get_target();
-        if target == "me" {
-            target = &command.source;
-        }
+        let target = parser.get_target();
+        let time = parser.get_time(Duration::from_secs(120))?;
 
         let event = database::NewEvent {
             receiver: target,
             content: &parser.get_message(),
-            author: &command.source,
-            time: &parser.get_time(Duration::from_secs(120))?,
+            author: author,
+            time: &time,
             repeat: parser
-                .get_repeat(Duration::from_secs(300))?
-                .map(|d| d.as_secs()),
+                .get_repeat(Duration::from_secs(600))?
+                .map(|d| d.as_secs() as i64),
         };
 
         debug!("New event: {:?}", event);
 
-        Ok(self.events.write().insert_event(&event).map(|()| "Got it")?)
+        Ok(self.events
+            .write()
+            .insert_event(&event)
+            .map(|id| format!("Created reminder with id {} at {} UTC", id, time))?)
     }
 
     fn list(&self, user: &str) -> Result<String, RemindError> {
         let mut events = self.events.read().get_user_events(user)?;
+
+        if events.is_empty() {
+            Err(ErrorKind::NotFound)?;
+        }
 
         let mut list = events.remove(0).to_string();
         for ev in events {
@@ -145,7 +162,10 @@ impl<T: 'static + Database> Remind<T> {
             .remove(0)
             .parse::<i64>()
             .context(ErrorKind::Parsing)?;
-        let event = self.events.read().get_event(id)?;
+        let event = self.events
+            .read()
+            .get_event(id)
+            .context(ErrorKind::NotFound)?;
 
         if event.receiver.eq_ignore_ascii_case(&command.source)
             || event.author.eq_ignore_ascii_case(&command.source)
@@ -169,15 +189,18 @@ impl<T: 'static + Database> Remind<T> {
 }
 
 impl<T: Database> Plugin for Remind<T> {
-    fn execute(&self, client: &IrcClient, _: &Message) -> ExecutionStatus {
-        let mut has_reminder = self.has_reminder.write();
-        if !*has_reminder {
-            let events = Arc::clone(&self.events);
-            let client = client.clone();
+    fn execute(&self, client: &IrcClient, msg: &Message) -> ExecutionStatus {
+        if let Command::JOIN(_, _, _) = msg.command {
+            let mut has_reminder = self.has_reminder.write();
 
-            spawn(move || run(&client, events));
+            if !*has_reminder {
+                let events = Arc::clone(&self.events);
+                let client = client.clone();
 
-            *has_reminder = true;
+                spawn(move || run(&client, events));
+
+                *has_reminder = true;
+            }
         }
 
         ExecutionStatus::Done
@@ -198,7 +221,8 @@ impl<T: Database> Plugin for Remind<T> {
 
         let sub_command = command.tokens.remove(0);
         let response = match sub_command.as_ref() {
-            "user" => self.set(command).map(|s| s.to_owned()),
+            "user" => self.user_cmd(command),
+            "me" => self.me_cmd(command),
             "delete" => self.delete(command).map(|s| s.to_owned()),
             "list" => self.list(&source),
             "help" => Ok(self.help().to_owned()),
@@ -241,7 +265,7 @@ pub mod error {
     #[error = "RemindError"]
     pub enum ErrorKind {
         /// Invalid command error
-        #[fail(display = "Incorrect Command. Send \"currency help\" for help.")]
+        #[fail(display = "Incorrect Command. Send \"remind help\" for help.")]
         InvalidCommand,
 
         /// Missing message error
@@ -287,5 +311,15 @@ pub mod error {
         /// Not found error
         #[fail(display = "No events found")]
         NotFound,
+
+        /// MySQL error
+        #[cfg(feature = "mysql")]
+        #[fail(display = "Failed to execute MySQL Query")]
+        MysqlError,
+
+        /// No connection error
+        #[cfg(feature = "mysql")]
+        #[fail(display = "No connection to the database")]
+        NoConnection,
     }
 }

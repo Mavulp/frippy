@@ -1,6 +1,3 @@
-#[cfg(feature = "mysql")]
-extern crate dotenv;
-
 use std::collections::HashMap;
 #[cfg(feature = "mysql")]
 use std::sync::Arc;

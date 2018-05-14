@@ -126,8 +126,7 @@ fn run() -> Result<(), Error> {
                             let pool = Arc::new(pool);
                             bot.add_plugin(Factoids::new(pool.clone()));
                             bot.add_plugin(Tell::new(pool.clone()));
-                            // TODO Use mysql pool
-                            bot.add_plugin(Remind::new(HashMap::new()));
+                            bot.add_plugin(Remind::new(pool.clone()));
                             info!("Connected to MySQL server")
                         }
                         Err(e) => {

@@ -27,20 +27,30 @@ enum ParseState {
 }
 
 impl CommandParser {
-    pub fn try_from_tokens(tokens: Vec<String>) -> Result<Self, RemindError> {
-        if tokens.is_empty() {
-            return Err(ErrorKind::MissingReceiver.into());
+    pub fn parse_target(mut tokens: Vec<String>) -> Result<Self, RemindError> {
+        let mut parser = CommandParser::default();
+
+        if let Some(target) = tokens.pop() {
+            parser.target = target;
+        } else {
+            Err(ErrorKind::MissingReceiver)?;
         }
 
+        parser.parse_tokens(tokens)
+    }
+
+    pub fn with_target(tokens: Vec<String>, target: String) -> Result<Self, RemindError> {
         let mut parser = CommandParser::default();
+        parser.target = target;
+
+        parser.parse_tokens(tokens)
+    }
+
+    fn parse_tokens(mut self, tokens: Vec<String>) -> Result<Self, RemindError> {
         let mut state = ParseState::None;
-
-        let mut iter = tokens.into_iter();
-        parser.target = iter.next()
-            .expect("This should be guaranteed by the length check");
-
         let mut cur_str = String::new();
-        while let Some(token) = iter.next() {
+
+        for token in tokens {
             let next_state = match token.as_ref() {
                 "on" => ParseState::On,
                 "at" => ParseState::At,
@@ -58,30 +68,31 @@ impl CommandParser {
 
             if next_state != state {
                 if state != ParseState::None {
-                    parser = parser.add_string_by_state(&state, cur_str)?;
+                    self = self.add_string_by_state(&state, cur_str)?;
                     cur_str = String::new();
                 }
 
                 state = next_state;
             }
         }
-        parser = parser.add_string_by_state(&state, cur_str)?;
 
-        if parser.message.is_none() {
+        self = self.add_string_by_state(&state, cur_str)?;
+
+        if self.message.is_none() {
             return Err(ErrorKind::MissingMessage.into());
         }
 
-        if parser.in_duration.is_some() && parser.at_time.is_some()
-            || parser.in_duration.is_some() && parser.on_date.is_some()
+        if self.in_duration.is_some() && self.at_time.is_some()
+            || self.in_duration.is_some() && self.on_date.is_some()
         {
             return Err(ErrorKind::AmbiguousTime.into());
         }
 
-        if parser.in_duration.is_none() && parser.at_time.is_none() && parser.on_date.is_none() {
+        if self.in_duration.is_none() && self.at_time.is_none() && self.on_date.is_none() {
             return Err(ErrorKind::MissingTime.into());
         }
 
-        Ok(parser)
+        Ok(self)
     }
 
     fn add_string_by_state(self, state: &ParseState, string: String) -> Result<Self, RemindError> {

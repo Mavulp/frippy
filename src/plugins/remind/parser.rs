@@ -30,11 +30,11 @@ impl CommandParser {
     pub fn parse_target(mut tokens: Vec<String>) -> Result<Self, RemindError> {
         let mut parser = CommandParser::default();
 
-        if let Some(target) = tokens.pop() {
-            parser.target = target;
-        } else {
+        if tokens.is_empty() {
             Err(ErrorKind::MissingReceiver)?;
         }
+
+        parser.target = tokens.remove(0);
 
         parser.parse_tokens(tokens)
     }

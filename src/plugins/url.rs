@@ -162,12 +162,14 @@ impl Plugin for UrlTitles {
 
     fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError> {
         match message.command {
-            Command::PRIVMSG(_, ref content) => match self.url(content) {
-                Ok(title) => client
-                    .send_privmsg(message.response_target().unwrap(), &title)
-                    .context(FrippyErrorKind::Connection)?,
-                Err(e) => Err(e).context(FrippyErrorKind::Url)?,
-            },
+            Command::PRIVMSG(_, ref content) => {
+                let title = self.url(content).context(FrippyErrorKind::Url)?;
+                let response = format!("[URL] {}", title);
+
+                client
+                    .send_privmsg(message.response_target().unwrap(), &response)
+                    .context(FrippyErrorKind::Connection)?;
+            }
             _ => (),
         }
 

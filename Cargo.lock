@@ -1682,7 +1682,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "unicode_names"
 version = "0.1.7"
-source = "git+https://github.com/Jokler/unicode_names?branch=update-to-latest-unicode#d97b80c3c35b9f1d04085409087ef113c94cde17"
+source = "git+https://github.com/Jokler/unicode_names?branch=update-to-latest-unicode#ef8e619897c1bbb1c36cd93b6f0a41dc9822ee58"
 
 [[package]]
 name = "unreachable"

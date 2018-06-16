@@ -18,7 +18,6 @@
 //!
 //! bot.add_plugin(plugins::help::Help::new());
 //! bot.add_plugin(plugins::emoji::Emoji::new());
-//! bot.add_plugin(plugins::currency::Currency::new());
 //!
 //! bot.connect(&mut reactor, &config).unwrap();
 //! reactor.run().unwrap();

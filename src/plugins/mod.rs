@@ -1,5 +1,4 @@
 //! Collection of plugins included
-pub mod currency;
 pub mod emoji;
 pub mod factoids;
 pub mod help;

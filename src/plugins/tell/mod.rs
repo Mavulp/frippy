@@ -49,9 +49,10 @@ impl<T: Database> Tell<T> {
             if receiver.eq_ignore_ascii_case(client.current_nickname())
                 || receiver.eq_ignore_ascii_case(&sender)
             {
-                online.push(receiver);
-                // TODO Change this when https://github.com/aatxe/irc/issues/136 gets resolved
-                // continue;
+                if !online.contains(&receiver) {
+                    online.push(receiver);
+                }
+                continue;
             }
 
             let channels = client
@@ -72,8 +73,11 @@ impl<T: Database> Tell<T> {
                 .map(find_receiver)
                 .any(|option| option.is_some())
             {
-                online.push(receiver);
-                continue;
+                if !online.contains(&receiver) {
+                    online.push(receiver);
+                }
+                // TODO Change this when https://github.com/aatxe/irc/issues/136 gets resolved
+                //continue;
             }
 
             let tm = time::now().to_timespec();

@@ -50,7 +50,8 @@ impl<T: Database> Tell<T> {
                 || receiver.eq_ignore_ascii_case(&sender)
             {
                 online.push(receiver);
-                continue;
+                // TODO Change this when https://github.com/aatxe/irc/issues/136 gets resolved
+                // continue;
             }
 
             let channels = client
@@ -176,7 +177,8 @@ impl<T: Database> Tell<T> {
     }
 
     fn help(&self) -> &str {
-        "usage: tell user message\r\n\
+        "Used to send messages to offline users which they will receive when they come online.\r\n
+         usage: tell user message\r\n\
          example: tell Foobar Hello!"
     }
 }
@@ -186,6 +188,7 @@ impl<T: Database> Plugin for Tell<T> {
         let res = match message.command {
             Command::JOIN(_, _, _) => self.send_tells(client, message.source_nickname().unwrap()),
             Command::NICK(ref nick) => self.send_tells(client, nick),
+            Command::PRIVMSG(ref nick, _) => self.send_tells(client, nick),
             Command::Response(resp, ref chan_info, _) => {
                 if resp == Response::RPL_NAMREPLY {
                     debug!("NAMREPLY info: {:?}", chan_info);

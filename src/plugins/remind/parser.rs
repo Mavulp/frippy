@@ -99,36 +99,26 @@ impl CommandParser {
         use self::ParseState::*;
         let string = Some(string);
         match state {
-            &On if self.on_date.is_none() => {
-                return Ok(CommandParser {
-                    on_date: string,
-                    ..self
-                })
-            }
-            &At if self.at_time.is_none() => {
-                return Ok(CommandParser {
-                    at_time: string,
-                    ..self
-                })
-            }
-            &In if self.in_duration.is_none() => {
-                return Ok(CommandParser {
-                    in_duration: string,
-                    ..self
-                })
-            }
-            &Msg if self.message.is_none() => {
-                return Ok(CommandParser {
-                    message: string,
-                    ..self
-                })
-            }
-            &Every if self.every_time.is_none() => {
-                return Ok(CommandParser {
-                    every_time: string,
-                    ..self
-                })
-            }
+            On if self.on_date.is_none() => Ok(CommandParser {
+                on_date: string,
+                ..self
+            }),
+            At if self.at_time.is_none() => Ok(CommandParser {
+                at_time: string,
+                ..self
+            }),
+            In if self.in_duration.is_none() => Ok(CommandParser {
+                in_duration: string,
+                ..self
+            }),
+            Msg if self.message.is_none() => Ok(CommandParser {
+                message: string,
+                ..self
+            }),
+            Every if self.every_time.is_none() => Ok(CommandParser {
+                every_time: string,
+                ..self
+            }),
             _ => Err(ErrorKind::MissingMessage.into()),
         }
     }

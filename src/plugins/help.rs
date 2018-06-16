@@ -25,14 +25,16 @@ impl Plugin for Help {
     }
 
     fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
-        Ok(client
+        client
             .send_notice(
                 &command.source,
                 "Available commands: help, currency, tell, factoids, remind\r\n\
                  For more detailed help call help on the specific command.\r\n\
                  Example: 'currency help'",
             )
-            .context(FrippyErrorKind::Connection)?)
+            .context(FrippyErrorKind::Connection)?;
+
+        Ok(())
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {

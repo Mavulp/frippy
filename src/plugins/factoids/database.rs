@@ -45,7 +45,7 @@ pub trait Database: Send + Sync {
 }
 
 // HashMap
-impl Database for HashMap<(String, i32), Factoid> {
+impl<S: ::std::hash::BuildHasher + Send + Sync> Database for HashMap<(String, i32), Factoid, S> {
     fn insert_factoid(&mut self, factoid: &NewFactoid) -> Result<(), FactoidsError> {
         let factoid = Factoid {
             name: factoid.name.to_owned(),

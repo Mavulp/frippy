@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use super::rlua::Error as LuaError;
 use super::rlua::Lua;
-use utils::Url;
 use utils::error::ErrorKind::Connection;
+use utils::Url;
 
 use failure::Fail;
 

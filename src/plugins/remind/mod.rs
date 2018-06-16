@@ -98,7 +98,7 @@ impl<T: 'static + Database> Remind<T> {
         let events = Arc::new(RwLock::new(db));
 
         Remind {
-            events: events,
+            events,
             has_reminder: RwLock::new(false),
         }
     }
@@ -106,17 +106,17 @@ impl<T: 'static + Database> Remind<T> {
     fn user_cmd(&self, command: PluginCommand) -> Result<String, RemindError> {
         let parser = CommandParser::parse_target(command.tokens)?;
 
-        self.set(parser, &command.source)
+        self.set(&parser, &command.source)
     }
 
     fn me_cmd(&self, command: PluginCommand) -> Result<String, RemindError> {
         let source = command.source.clone();
         let parser = CommandParser::with_target(command.tokens, command.source)?;
 
-        self.set(parser, &source)
+        self.set(&parser, &source)
     }
 
-    fn set(&self, parser: CommandParser, author: &str) -> Result<String, RemindError> {
+    fn set(&self, parser: &CommandParser, author: &str) -> Result<String, RemindError> {
         debug!("parser: {:?}", parser);
 
         let target = parser.get_target();
@@ -125,7 +125,7 @@ impl<T: 'static + Database> Remind<T> {
         let event = database::NewEvent {
             receiver: target,
             content: &parser.get_message(),
-            author: author,
+            author,
             time: &time,
             repeat: parser
                 .get_repeat(Duration::from_secs(600))?
@@ -212,9 +212,10 @@ impl<T: Database> Plugin for Remind<T> {
 
     fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
-            return Ok(client
+            client
                 .send_notice(&command.source, &ErrorKind::InvalidCommand.to_string())
-                .context(FrippyErrorKind::Connection)?);
+                .context(FrippyErrorKind::Connection)?;
+            return Ok(());
         }
 
         let source = command.source.clone();
@@ -229,7 +230,7 @@ impl<T: Database> Plugin for Remind<T> {
             _ => Err(ErrorKind::InvalidCommand.into()),
         };
 
-        let result = match response {
+        match response {
             Ok(msg) => client
                 .send_notice(&source, &msg)
                 .context(FrippyErrorKind::Connection)?,
@@ -242,9 +243,9 @@ impl<T: Database> Plugin for Remind<T> {
 
                 Err(e).context(FrippyErrorKind::Remind)?
             }
-        };
+        }
 
-        Ok(result)
+        Ok(())
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {

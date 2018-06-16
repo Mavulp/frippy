@@ -82,7 +82,7 @@ impl PluginCommand {
             Some(PluginCommand {
                 source: message.source_nickname().unwrap().to_string(),
                 target: message.response_target().unwrap().to_string(),
-                tokens: tokens,
+                tokens,
             })
         } else {
             None

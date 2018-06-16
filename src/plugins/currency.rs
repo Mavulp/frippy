@@ -7,8 +7,8 @@ use std::num::ParseFloatError;
 
 use irc::client::prelude::*;
 
-use self::reqwest::Client;
 use self::reqwest::header::Connection;
+use self::reqwest::Client;
 use self::serde_json::Value;
 
 use plugin::*;
@@ -88,7 +88,7 @@ impl Currency {
                     "{} {} => {:.4} {}",
                     request.value,
                     request.source.to_lowercase(),
-                    response / 1.00000000,
+                    response,
                     request.target.to_lowercase()
                 );
 
@@ -125,24 +125,28 @@ impl Plugin for Currency {
 
     fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
-            return Ok(client
+            client
                 .send_notice(&command.source, &self.invalid_command())
-                .context(FrippyErrorKind::Connection)?);
+                .context(FrippyErrorKind::Connection)?;
+
+            return Ok(());
         }
 
         match command.tokens[0].as_ref() {
-            "help" => Ok(client
+            "help" => client
                 .send_notice(&command.source, self.help())
-                .context(FrippyErrorKind::Connection)?),
+                .context(FrippyErrorKind::Connection)?,
             _ => match self.convert(&mut command) {
-                Ok(msg) => Ok(client
+                Ok(msg) => client
                     .send_privmsg(&command.target, &msg)
-                    .context(FrippyErrorKind::Connection)?),
-                Err(msg) => Ok(client
+                    .context(FrippyErrorKind::Connection)?,
+                Err(msg) => client
                     .send_notice(&command.source, &msg)
-                    .context(FrippyErrorKind::Connection)?),
+                    .context(FrippyErrorKind::Connection)?,
             },
         }
+
+        Ok(())
     }
 
     fn evaluate(&self, _: &IrcClient, mut command: PluginCommand) -> Result<String, String> {

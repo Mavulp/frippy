@@ -1,4 +1,5 @@
 use antidote::RwLock;
+use irc::client::data::User;
 use irc::client::prelude::*;
 
 use chrono::NaiveDateTime;
@@ -56,17 +57,19 @@ impl<T: Database> Tell<T> {
                 .list_channels()
                 .expect("The irc crate should not be compiled with the \"nochanlists\" feature");
 
-            if let Some(_) = channels
+            let find_receiver = |option: Option<Vec<User>>| {
+                option.and_then(|users| {
+                    users
+                        .into_iter()
+                        .find(|user| user.get_nickname().eq_ignore_ascii_case(&receiver))
+                })
+            };
+
+            if channels
                 .iter()
                 .map(|channel| client.list_users(&channel))
-                .map(|option| {
-                    option.and_then(|users| {
-                        users
-                            .into_iter()
-                            .find(|user| user.get_nickname().eq_ignore_ascii_case(&receiver))
-                    })
-                })
-                .find(|option| option.is_some())
+                .map(find_receiver)
+                .any(|option| option.is_some())
             {
                 online.push(receiver);
                 continue;
@@ -87,7 +90,7 @@ impl<T: Database> Tell<T> {
         }
 
         Ok(if no_receiver && online.is_empty() {
-            format!("Invalid receiver.")
+            String::from("Invalid receiver.")
         } else {
             match online.len() {
                 0 => format!("Got it!"),
@@ -207,28 +210,29 @@ impl<T: Database> Plugin for Tell<T> {
 
     fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
-            return Ok(client
+            client
                 .send_notice(&command.source, &self.invalid_command())
-                .context(FrippyErrorKind::Connection)?);
+                .context(FrippyErrorKind::Connection)?;
+            return Ok(());
         }
 
         let sender = command.source.to_owned();
 
-        Ok(match command.tokens[0].as_ref() {
+        match command.tokens[0].as_ref() {
             "help" => client
                 .send_notice(&command.source, &self.help())
-                .context(FrippyErrorKind::Connection)
-                .into(),
+                .context(FrippyErrorKind::Connection),
             _ => match self.tell_command(client, command) {
                 Ok(msg) => client
                     .send_notice(&sender, &msg)
                     .context(FrippyErrorKind::Connection),
                 Err(e) => client
                     .send_notice(&sender, &e.to_string())
-                    .context(FrippyErrorKind::Connection)
-                    .into(),
+                    .context(FrippyErrorKind::Connection),
             },
-        }?)
+        }?;
+
+        Ok(())
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {

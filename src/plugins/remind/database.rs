@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fmt;
 
 #[cfg(feature = "mysql")]
@@ -66,7 +66,7 @@ pub trait Database: Send + Sync {
 }
 
 // HashMap
-impl Database for HashMap<i64, Event> {
+impl<S: ::std::hash::BuildHasher + Send + Sync> Database for HashMap<i64, Event, S> {
     fn insert_event(&mut self, event: &NewEvent) -> Result<i64, RemindError> {
         let mut id = 0;
         while self.contains_key(&id) {
@@ -74,11 +74,11 @@ impl Database for HashMap<i64, Event> {
         }
 
         let event = Event {
-            id: id,
+            id,
             receiver: event.receiver.to_owned(),
             content: event.content.to_owned(),
             author: event.author.to_owned(),
-            time: event.time.clone(),
+            time: *event.time,
             repeat: event.repeat,
         };
 
@@ -103,7 +103,7 @@ impl Database for HashMap<i64, Event> {
         let mut events = Vec::new();
 
         for (_, event) in self.iter() {
-            if &event.time < time {
+            if event.time < *time {
                 events.push(event.clone())
             }
         }
@@ -132,9 +132,7 @@ impl Database for HashMap<i64, Event> {
     }
 
     fn get_event(&self, id: i64) -> Result<Event, RemindError> {
-        Ok(self.get(&id)
-            .map(|ev| ev.clone())
-            .ok_or(ErrorKind::NotFound)?)
+        Ok(self.get(&id).cloned().ok_or(ErrorKind::NotFound)?)
     }
 
     fn delete_event(&mut self, id: i64) -> Result<(), RemindError> {

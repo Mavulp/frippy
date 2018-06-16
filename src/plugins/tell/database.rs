@@ -45,7 +45,7 @@ pub trait Database: Send + Sync {
 }
 
 // HashMap
-impl Database for HashMap<String, Vec<TellMessage>> {
+impl<S: ::std::hash::BuildHasher + Send + Sync> Database for HashMap<String, Vec<TellMessage>, S> {
     fn insert_tell(&mut self, tell: &NewTellMessage) -> Result<(), TellError> {
         let tell = TellMessage {
             id: 0,

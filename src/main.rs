@@ -102,7 +102,7 @@ fn run() -> Result<(), Error> {
 
             mysql_url = options.get("mysql_url");
         }
-        let prefix = prefix.map(|&ref s| s.clone()).unwrap_or(String::from("."));
+        let prefix = prefix.cloned().unwrap_or_else(|| String::from("."));
 
         let mut bot = frippy::Bot::new(&prefix);
         bot.add_plugin(Help::new());
@@ -166,5 +166,7 @@ fn run() -> Result<(), Error> {
     }
 
     // Run the bots until they throw an error - an error could be loss of connection
-    Ok(reactor.run()?)
+    reactor.run()?;
+
+    Ok(())
 }

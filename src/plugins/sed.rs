@@ -26,7 +26,7 @@ pub struct Sed {
 impl Sed {
     pub fn new(per_channel: usize) -> Sed {
         Sed {
-            per_channel: per_channel,
+            per_channel,
             channel_messages: RwLock::new(HashMap::new()),
         }
     }
@@ -35,7 +35,7 @@ impl Sed {
         let mut channel_messages = self.channel_messages.write();
         let messages = channel_messages
             .entry(channel)
-            .or_insert(CircularQueue::with_capacity(self.per_channel));
+            .or_insert_with(|| CircularQueue::with_capacity(self.per_channel));
         messages.push(message);
     }
 
@@ -150,12 +150,14 @@ impl Plugin for Sed {
     }
 
     fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
-        Ok(client
+        client
             .send_notice(
                 &command.source,
                 "Currently this Plugin does not implement any commands.",
             )
-            .context(FrippyErrorKind::Connection)?)
+            .context(FrippyErrorKind::Connection)?;
+
+        Ok(())
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {

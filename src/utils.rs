@@ -53,10 +53,7 @@ impl<'a> Url<'a> {
     /// that the limit set by max_kib() was reached.
     pub fn request(&self) -> Result<String, DownloadError> {
         let client = if let Some(timeout) = self.timeout {
-            ClientBuilder::new()
-                .timeout(timeout)
-                .build()
-                .unwrap()
+            ClientBuilder::new().timeout(timeout).build().unwrap()
         } else {
             Client::new()
         };

@@ -126,12 +126,14 @@ impl Plugin for Emoji {
     }
 
     fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
-        Ok(client
+        client
             .send_notice(
                 &command.source,
                 "This Plugin does not implement any commands.",
             )
-            .context(FrippyErrorKind::Connection)?)
+            .context(FrippyErrorKind::Connection)?;
+
+        Ok(())
     }
 
     fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {

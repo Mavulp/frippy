@@ -51,10 +51,10 @@ impl<T: Database> Factoids<T> {
         let tm = time::now().to_timespec();
 
         let factoid = database::NewFactoid {
-            name: name,
+            name,
             idx: count,
-            content: content,
-            author: author,
+            content,
+            author,
             created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
         };
 
@@ -91,7 +91,7 @@ impl<T: Database> Factoids<T> {
     }
 
     fn remove(&self, command: &mut PluginCommand) -> Result<&str, FactoidsError> {
-        if command.tokens.len() < 1 {
+        if command.tokens.is_empty() {
             Err(ErrorKind::InvalidCommand)?;
         }
 
@@ -165,7 +165,7 @@ impl<T: Database> Factoids<T> {
     }
 
     fn exec(&self, mut command: PluginCommand) -> Result<String, FactoidsError> {
-        if command.tokens.len() < 1 {
+        if command.tokens.is_empty() {
             Err(ErrorKind::InvalidIndex)?
         } else {
             let name = command.tokens.remove(0);
@@ -251,24 +251,25 @@ impl<T: Database> Plugin for Factoids<T> {
                 tokens: t,
             };
 
-            Ok(match self.exec(c) {
-                Ok(f) => client
+            if let Ok(f) = self.exec(c) {
+                client
                     .send_privmsg(&message.response_target().unwrap(), &f)
-                    .context(FrippyErrorKind::Connection)?,
-                Err(_) => (),
-            })
-        } else {
-            Ok(())
+                    .context(FrippyErrorKind::Connection)?;
+            }
         }
+
+        Ok(())
     }
 
     fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), FrippyError> {
         use self::FactoidResponse::{Private, Public};
 
         if command.tokens.is_empty() {
-            return Ok(client
+            client
                 .send_notice(&command.source, "Invalid command")
-                .context(FrippyErrorKind::Connection)?);
+                .context(FrippyErrorKind::Connection)?;
+
+            return Ok(());
         }
 
         let target = command.target.clone();
@@ -280,14 +281,14 @@ impl<T: Database> Plugin for Factoids<T> {
             "fromurl" => self.add_from_url(&mut command)
                 .map(|s| Private(s.to_owned())),
             "remove" => self.remove(&mut command).map(|s| Private(s.to_owned())),
-            "get" => self.get(&command).map(|s| Public(s)),
-            "info" => self.info(&command).map(|s| Public(s)),
-            "exec" => self.exec(command).map(|s| Public(s)),
+            "get" => self.get(&command).map(Public),
+            "info" => self.info(&command).map(Public),
+            "exec" => self.exec(command).map(Public),
             "help" => Ok(Private(self.help().to_owned())),
             _ => Err(ErrorKind::InvalidCommand.into()),
         };
 
-        Ok(match result {
+        match result {
             Ok(v) => match v {
                 Public(m) => client
                     .send_privmsg(&target, &m)
@@ -303,7 +304,9 @@ impl<T: Database> Plugin for Factoids<T> {
                     .context(FrippyErrorKind::Connection)?;
                 Err(e).context(FrippyErrorKind::Factoids)?
             }
-        })
+        }
+
+        Ok(())
     }
 
     fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {

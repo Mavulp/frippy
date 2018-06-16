@@ -64,11 +64,11 @@ impl Title {
             .map_err(|_| ErrorKind::HtmlDecoding.into())
     }
 
-    fn find_ogtitle<'a>(body: &str) -> Result<Self, UrlError> {
+    fn find_ogtitle(body: &str) -> Result<Self, UrlError> {
         Self::find_by_delimiters(body, ["property=\"og:title\"", "content=\"", "\""])
     }
 
-    fn find_title<'a>(body: &str) -> Result<Self, UrlError> {
+    fn find_title(body: &str) -> Result<Self, UrlError> {
         Self::find_by_delimiters(body, ["<title", ">", "</title>"])
     }
 
@@ -93,12 +93,12 @@ impl Title {
         Title(self.0.trim().replace('\n', "|").replace('\r', "|"), self.1)
     }
 
-    pub fn find_clean_ogtitle<'a>(body: &str, url: &str) -> Result<Self, UrlError> {
+    pub fn find_clean_ogtitle(body: &str, url: &str) -> Result<Self, UrlError> {
         let title = Self::find_ogtitle(body)?;
         Ok(title.get_usefulness(url).clean_up())
     }
 
-    pub fn find_clean_title<'a>(body: &str, url: &str) -> Result<Self, UrlError> {
+    pub fn find_clean_title(body: &str, url: &str) -> Result<Self, UrlError> {
         let title = Self::find_title(body)?;
         Ok(title.get_usefulness(url).clean_up())
     }
@@ -107,7 +107,7 @@ impl Title {
 impl UrlTitles {
     /// If a file is larger than `max_kib` KiB the download is stopped
     pub fn new(max_kib: usize) -> Self {
-        UrlTitles { max_kib: max_kib }
+        UrlTitles { max_kib }
     }
 
     fn grep_url<'a>(&self, msg: &'a str) -> Option<Url<'a>> {
@@ -161,28 +161,27 @@ impl Plugin for UrlTitles {
     }
 
     fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError> {
-        match message.command {
-            Command::PRIVMSG(_, ref content) => {
-                let title = self.url(content).context(FrippyErrorKind::Url)?;
-                let response = format!("[URL] {}", title);
+        if let Command::PRIVMSG(_, ref content) = message.command {
+            let title = self.url(content).context(FrippyErrorKind::Url)?;
+            let response = format!("[URL] {}", title);
 
-                client
-                    .send_privmsg(message.response_target().unwrap(), &response)
-                    .context(FrippyErrorKind::Connection)?;
-            }
-            _ => (),
+            client
+                .send_privmsg(message.response_target().unwrap(), &response)
+                .context(FrippyErrorKind::Connection)?;
         }
 
         Ok(())
     }
 
     fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
-        Ok(client
+        client
             .send_notice(
                 &command.source,
                 "This Plugin does not implement any commands.",
             )
-            .context(FrippyErrorKind::Connection)?)
+            .context(FrippyErrorKind::Connection)?;
+
+        Ok(())
     }
 
     fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {

@@ -3,7 +3,6 @@ Frippy is an IRC bot which is splits its functions into plugins.
 Currently it has plugins to:
 
 * Send the names of emojis used
-* Convert currencies with the help of [fixer.io](https://fixer.io/)
 * Send the titles of HTML pages linked  
 * Create factoids with Lua support
 * Send messages to offline users when they join again

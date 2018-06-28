@@ -208,6 +208,7 @@ impl<T: Database> Factoids<T> {
 
         globals.set("factoid", code)?;
         globals.set("download", lua.create_function(download)?)?;
+        globals.set("json_decode", lua.create_function(json_decode)?)?;
         globals.set("sleep", lua.create_function(sleep)?)?;
         globals.set("args", args)?;
         globals.set("input", command.tokens.join(" "))?;

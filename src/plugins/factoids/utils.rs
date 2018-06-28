@@ -1,14 +1,21 @@
-extern crate reqwest;
-
 use std::thread;
 use std::time::Duration;
 
+use serde_json::{self, Value as SerdeValue};
+
 use super::rlua::Error as LuaError;
-use super::rlua::Lua;
+use super::rlua::Error::RuntimeError;
+use super::rlua::{Lua, Value as LuaValue};
+
 use utils::error::ErrorKind::Connection;
 use utils::Url;
 
 use failure::Fail;
+
+pub fn sleep(_: &Lua, dur: u64) -> Result<(), LuaError> {
+    thread::sleep(Duration::from_millis(dur));
+    Ok(())
+}
 
 pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
     let url = Url::from(url).max_kib(1024);
@@ -20,7 +27,7 @@ pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
                 _ => e.to_string(),
             };
 
-            Err(LuaError::RuntimeError(format!(
+            Err(RuntimeError(format!(
                 "Failed to download {} - {}",
                 url.as_str(),
                 error
@@ -29,7 +36,38 @@ pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
     }
 }
 
-pub fn sleep(_: &Lua, dur: u64) -> Result<(), LuaError> {
-    thread::sleep(Duration::from_millis(dur));
-    Ok(())
+fn convert_value(lua: &Lua, sval: SerdeValue) -> Result<LuaValue, LuaError> {
+    let lval = match sval {
+        SerdeValue::Null => LuaValue::Nil,
+        SerdeValue::Bool(b) => LuaValue::Boolean(b),
+        SerdeValue::String(s) => LuaValue::String(lua.create_string(&s)?),
+        SerdeValue::Number(n) => {
+            let f = n.as_f64().ok_or(RuntimeError(String::from("Failed to convert number into double",)))?;
+            LuaValue::Number(f)
+        }
+        SerdeValue::Array(arr) => {
+            let table = lua.create_table()?;
+            for (i, val) in arr.into_iter().enumerate() {
+                table.set(i + 1, convert_value(lua, val)?)?;
+            }
+
+            LuaValue::Table(table)
+        }
+        SerdeValue::Object(obj) => {
+            let table = lua.create_table()?;
+            for (key, val) in obj {
+                table.set(key, convert_value(lua, val)?)?;
+            }
+
+            LuaValue::Table(table)
+        }
+    };
+
+    Ok(lval)
+}
+
+pub fn json_decode(lua: &Lua, json: String) -> Result<LuaValue, LuaError> {
+    let ser_val: SerdeValue = serde_json::from_str(&json).map_err(|e| RuntimeError(e.to_string()))?;
+
+    convert_value(lua, ser_val)
 }

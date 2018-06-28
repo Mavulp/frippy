@@ -52,6 +52,7 @@ extern crate humantime;
 extern crate irc;
 extern crate regex;
 extern crate reqwest;
+extern crate serde_json;
 extern crate time;
 
 pub mod error;

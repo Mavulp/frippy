@@ -32,6 +32,7 @@ local sandbox_env = {
   trim = trim,
   eval = nil,
   sleep = nil,
+  json = {decode = json_decode},
   args = args,
   input = input,
   user = user,

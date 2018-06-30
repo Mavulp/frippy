@@ -36,7 +36,11 @@ pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
     }
 }
 
-fn convert_value(lua: &Lua, sval: SerdeValue) -> Result<LuaValue, LuaError> {
+fn convert_value(lua: &Lua, sval: SerdeValue, max_recurs: usize) -> Result<LuaValue, LuaError> {
+    if max_recurs == 0 {
+        return Err(RuntimeError(String::from("Reached max recursion level - json is nested too deep")));
+    }
+
     let lval = match sval {
         SerdeValue::Null => LuaValue::Nil,
         SerdeValue::Bool(b) => LuaValue::Boolean(b),
@@ -48,7 +52,7 @@ fn convert_value(lua: &Lua, sval: SerdeValue) -> Result<LuaValue, LuaError> {
         SerdeValue::Array(arr) => {
             let table = lua.create_table()?;
             for (i, val) in arr.into_iter().enumerate() {
-                table.set(i + 1, convert_value(lua, val)?)?;
+                table.set(i + 1, convert_value(lua, val, max_recurs - 1)?)?;
             }
 
             LuaValue::Table(table)
@@ -56,7 +60,7 @@ fn convert_value(lua: &Lua, sval: SerdeValue) -> Result<LuaValue, LuaError> {
         SerdeValue::Object(obj) => {
             let table = lua.create_table()?;
             for (key, val) in obj {
-                table.set(key, convert_value(lua, val)?)?;
+                table.set(key, convert_value(lua, val, max_recurs - 1)?)?;
             }
 
             LuaValue::Table(table)
@@ -69,5 +73,5 @@ fn convert_value(lua: &Lua, sval: SerdeValue) -> Result<LuaValue, LuaError> {
 pub fn json_decode(lua: &Lua, json: String) -> Result<LuaValue, LuaError> {
     let ser_val: SerdeValue = serde_json::from_str(&json).map_err(|e| RuntimeError(e.to_string()))?;
 
-    convert_value(lua, ser_val)
+    convert_value(lua, ser_val, 25)
 }

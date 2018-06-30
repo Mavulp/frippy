@@ -1,10 +1,12 @@
 extern crate unicode_names;
 
 use std::fmt;
+use std::marker::PhantomData;
 
 use irc::client::prelude::*;
 
 use plugin::*;
+use FrippyClient;
 
 use error::ErrorKind as FrippyErrorKind;
 use error::FrippyError;
@@ -33,11 +35,15 @@ impl fmt::Display for EmojiHandle {
 }
 
 #[derive(PluginName, Default, Debug)]
-pub struct Emoji;
+pub struct Emoji<C> {
+    phantom: PhantomData<C>,
+}
 
-impl Emoji {
-    pub fn new() -> Emoji {
-        Emoji {}
+impl<C: FrippyClient> Emoji<C> {
+    pub fn new() -> Self {
+        Emoji {
+            phantom: PhantomData,
+        }
     }
 
     fn emoji(&self, content: &str) -> Option<String> {
@@ -102,8 +108,9 @@ impl Emoji {
     }
 }
 
-impl Plugin for Emoji {
-    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
+impl<C: FrippyClient> Plugin for Emoji<C> {
+    type Client = C;
+    fn execute(&self, client: &Self::Client, message: &Message) -> ExecutionStatus {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
                 if let Some(emojis) = self.emoji(content) {
@@ -121,11 +128,11 @@ impl Plugin for Emoji {
         }
     }
 
-    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), FrippyError> {
+    fn execute_threaded(&self, _: &Self::Client, _: &Message) -> Result<(), FrippyError> {
         panic!("Emoji should not use threading")
     }
 
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
+    fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         client
             .send_notice(
                 &command.source,
@@ -136,7 +143,7 @@ impl Plugin for Emoji {
         Ok(())
     }
 
-    fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &Self::Client, command: PluginCommand) -> Result<String, String> {
         if let Some(emojis) = self.emoji(&command.tokens[0]) {
             Ok(emojis)
         } else {

@@ -1,11 +1,14 @@
+use std::collections::HashMap;
+use std::marker::PhantomData;
+
 use antidote::RwLock;
 use circular_queue::CircularQueue;
 use regex::{Regex, RegexBuilder};
-use std::collections::HashMap;
 
 use irc::client::prelude::*;
 
 use plugin::*;
+use FrippyClient;
 
 use self::error::*;
 use error::ErrorKind as FrippyErrorKind;
@@ -14,20 +17,23 @@ use failure::Fail;
 use failure::ResultExt;
 
 lazy_static! {
-    static ref RE: Regex = Regex::new(r"^s/((?:\\/|[^/])+)/((?:\\/|[^/])*)/(?:(\w+))?\s*$").unwrap();
+    static ref RE: Regex =
+        Regex::new(r"^s/((?:\\/|[^/])+)/((?:\\/|[^/])*)/(?:(\w+))?\s*$").unwrap();
 }
 
 #[derive(PluginName, Debug)]
-pub struct Sed {
+pub struct Sed<C> {
     per_channel: usize,
     channel_messages: RwLock<HashMap<String, CircularQueue<String>>>,
+    phantom: PhantomData<C>,
 }
 
-impl Sed {
-    pub fn new(per_channel: usize) -> Sed {
+impl<C: FrippyClient> Sed<C> {
+    pub fn new(per_channel: usize) -> Self {
         Sed {
             per_channel,
             channel_messages: RwLock::new(HashMap::new()),
+            phantom: PhantomData,
         }
     }
 
@@ -108,8 +114,9 @@ impl Sed {
     }
 }
 
-impl Plugin for Sed {
-    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
+impl<C: FrippyClient> Plugin for Sed<C> {
+    type Client = C;
+    fn execute(&self, client: &Self::Client, message: &Message) -> ExecutionStatus {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
                 let channel = message.response_target().unwrap();
@@ -145,11 +152,11 @@ impl Plugin for Sed {
         }
     }
 
-    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), FrippyError> {
+    fn execute_threaded(&self, _: &Self::Client, _: &Message) -> Result<(), FrippyError> {
         panic!("Sed should not use threading")
     }
 
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
+    fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         client
             .send_notice(
                 &command.source,
@@ -160,7 +167,7 @@ impl Plugin for Sed {
         Ok(())
     }
 
-    fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &Self::Client, _: PluginCommand) -> Result<String, String> {
         Err(String::from(
             "Evaluation of commands is not implemented for sed at this time",
         ))

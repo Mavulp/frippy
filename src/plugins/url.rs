@@ -1,5 +1,6 @@
 extern crate htmlescape;
 
+use std::marker::PhantomData;
 use std::time::Duration;
 
 use irc::client::prelude::*;
@@ -8,6 +9,7 @@ use regex::Regex;
 
 use plugin::*;
 use utils::Url;
+use FrippyClient;
 
 use self::error::*;
 use error::ErrorKind as FrippyErrorKind;
@@ -21,8 +23,9 @@ lazy_static! {
 }
 
 #[derive(PluginName, Debug)]
-pub struct UrlTitles {
+pub struct UrlTitles<C> {
     max_kib: usize,
+    phantom: PhantomData<C>,
 }
 
 #[derive(Clone, Debug)]
@@ -104,10 +107,13 @@ impl Title {
     }
 }
 
-impl UrlTitles {
+impl<C: FrippyClient> UrlTitles<C> {
     /// If a file is larger than `max_kib` KiB the download is stopped
     pub fn new(max_kib: usize) -> Self {
-        UrlTitles { max_kib }
+        UrlTitles {
+            max_kib,
+            phantom: PhantomData,
+        }
     }
 
     fn grep_url<'a>(&self, msg: &'a str) -> Option<Url<'a>> {
@@ -148,8 +154,9 @@ impl UrlTitles {
     }
 }
 
-impl Plugin for UrlTitles {
-    fn execute(&self, _: &IrcClient, message: &Message) -> ExecutionStatus {
+impl<C: FrippyClient> Plugin for UrlTitles<C> {
+    type Client = C;
+    fn execute(&self, _: &Self::Client, message: &Message) -> ExecutionStatus {
         match message.command {
             Command::PRIVMSG(_, ref msg) => if URL_RE.is_match(msg) {
                 ExecutionStatus::RequiresThread
@@ -160,7 +167,11 @@ impl Plugin for UrlTitles {
         }
     }
 
-    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError> {
+    fn execute_threaded(
+        &self,
+        client: &Self::Client,
+        message: &Message,
+    ) -> Result<(), FrippyError> {
         if let Command::PRIVMSG(_, ref content) = message.command {
             let title = self.url(content).context(FrippyErrorKind::Url)?;
             let response = format!("[URL] {}", title);
@@ -173,7 +184,7 @@ impl Plugin for UrlTitles {
         Ok(())
     }
 
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
+    fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         client
             .send_notice(
                 &command.source,
@@ -184,7 +195,7 @@ impl Plugin for UrlTitles {
         Ok(())
     }
 
-    fn evaluate(&self, _: &IrcClient, command: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &Self::Client, command: PluginCommand) -> Result<String, String> {
         self.url(&command.tokens[0])
             .map_err(|e| e.cause().unwrap().to_string())
     }

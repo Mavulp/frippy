@@ -38,7 +38,9 @@ pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
 
 fn convert_value(lua: &Lua, sval: SerdeValue, max_recurs: usize) -> Result<LuaValue, LuaError> {
     if max_recurs == 0 {
-        return Err(RuntimeError(String::from("Reached max recursion level - json is nested too deep")));
+        return Err(RuntimeError(String::from(
+            "Reached max recursion level - json is nested too deep",
+        )));
     }
 
     let lval = match sval {
@@ -46,7 +48,9 @@ fn convert_value(lua: &Lua, sval: SerdeValue, max_recurs: usize) -> Result<LuaVa
         SerdeValue::Bool(b) => LuaValue::Boolean(b),
         SerdeValue::String(s) => LuaValue::String(lua.create_string(&s)?),
         SerdeValue::Number(n) => {
-            let f = n.as_f64().ok_or(RuntimeError(String::from("Failed to convert number into double",)))?;
+            let f = n.as_f64().ok_or(RuntimeError(String::from(
+                "Failed to convert number into double",
+            )))?;
             LuaValue::Number(f)
         }
         SerdeValue::Array(arr) => {

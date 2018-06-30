@@ -4,12 +4,14 @@ use self::rlua::prelude::*;
 use antidote::RwLock;
 use irc::client::prelude::*;
 use std::fmt;
+use std::marker::PhantomData;
 use std::str::FromStr;
 
 use chrono::NaiveDateTime;
 use time;
 
 use plugin::*;
+use FrippyClient;
 pub mod database;
 use self::database::Database;
 
@@ -30,14 +32,16 @@ enum FactoidResponse {
 }
 
 #[derive(PluginName)]
-pub struct Factoids<T: Database> {
+pub struct Factoids<T: Database, C: Client> {
     factoids: RwLock<T>,
+    phantom: PhantomData<C>,
 }
 
-impl<T: Database> Factoids<T> {
-    pub fn new(db: T) -> Factoids<T> {
+impl<T: Database, C: Client> Factoids<T, C> {
+    pub fn new(db: T) -> Self {
         Factoids {
             factoids: RwLock::new(db),
+            phantom: PhantomData,
         }
     }
 
@@ -228,8 +232,9 @@ impl<T: Database> Factoids<T> {
     }
 }
 
-impl<T: Database> Plugin for Factoids<T> {
-    fn execute(&self, _: &IrcClient, message: &Message) -> ExecutionStatus {
+impl<T: Database, C: FrippyClient> Plugin for Factoids<T, C> {
+    type Client = C;
+    fn execute(&self, _: &Self::Client, message: &Message) -> ExecutionStatus {
         match message.command {
             Command::PRIVMSG(_, ref content) => if content.starts_with('!') {
                 ExecutionStatus::RequiresThread
@@ -240,7 +245,11 @@ impl<T: Database> Plugin for Factoids<T> {
         }
     }
 
-    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError> {
+    fn execute_threaded(
+        &self,
+        client: &Self::Client,
+        message: &Message,
+    ) -> Result<(), FrippyError> {
         if let Command::PRIVMSG(_, mut content) = message.command.clone() {
             content.remove(0);
 
@@ -262,7 +271,11 @@ impl<T: Database> Plugin for Factoids<T> {
         Ok(())
     }
 
-    fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), FrippyError> {
+    fn command(
+        &self,
+        client: &Self::Client,
+        mut command: PluginCommand,
+    ) -> Result<(), FrippyError> {
         use self::FactoidResponse::{Private, Public};
 
         if command.tokens.is_empty() {
@@ -310,14 +323,14 @@ impl<T: Database> Plugin for Factoids<T> {
         Ok(())
     }
 
-    fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &Self::Client, _: PluginCommand) -> Result<String, String> {
         Err(String::from(
             "Evaluation of commands is not implemented for Factoids at this time",
         ))
     }
 }
 
-impl<T: Database> fmt::Debug for Factoids<T> {
+impl<T: Database, C: FrippyClient> fmt::Debug for Factoids<T, C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Factoids {{ ... }}")
     }

@@ -1,12 +1,16 @@
-use antidote::RwLock;
-use irc::client::prelude::*;
+use std::marker::PhantomData;
 use std::thread::{sleep, spawn};
 use std::{fmt, sync::Arc, time::Duration};
+
+use antidote::RwLock;
+use irc::client::prelude::*;
 
 use chrono::{self, NaiveDateTime};
 use time;
 
 use plugin::*;
+use FrippyClient;
+
 pub mod database;
 mod parser;
 use self::database::Database;
@@ -38,7 +42,7 @@ fn get_events<T: Database>(db: &RwLock<T>, in_next: chrono::Duration) -> Vec<dat
     }
 }
 
-fn run<T: Database>(client: &IrcClient, db: Arc<RwLock<T>>) {
+fn run<T: Database, C: FrippyClient>(client: &C, db: Arc<RwLock<T>>) {
     let look_ahead = chrono::Duration::minutes(2);
 
     let mut events = get_events(&db, look_ahead);
@@ -88,18 +92,20 @@ fn run<T: Database>(client: &IrcClient, db: Arc<RwLock<T>>) {
 }
 
 #[derive(PluginName)]
-pub struct Remind<T: 'static + Database> {
+pub struct Remind<T: Database + 'static, C> {
     events: Arc<RwLock<T>>,
     has_reminder: RwLock<bool>,
+    phantom: PhantomData<C>,
 }
 
-impl<T: 'static + Database> Remind<T> {
+impl<T: Database + 'static, C: FrippyClient> Remind<T, C> {
     pub fn new(db: T) -> Self {
         let events = Arc::new(RwLock::new(db));
 
         Remind {
             events,
             has_reminder: RwLock::new(false),
+            phantom: PhantomData,
         }
     }
 
@@ -188,8 +194,9 @@ impl<T: 'static + Database> Remind<T> {
     }
 }
 
-impl<T: Database> Plugin for Remind<T> {
-    fn execute(&self, client: &IrcClient, msg: &Message) -> ExecutionStatus {
+impl<T: Database, C: FrippyClient + 'static> Plugin for Remind<T, C> {
+    type Client = C;
+    fn execute(&self, client: &Self::Client, msg: &Message) -> ExecutionStatus {
         if let Command::JOIN(_, _, _) = msg.command {
             let mut has_reminder = self.has_reminder.write();
 
@@ -206,11 +213,15 @@ impl<T: Database> Plugin for Remind<T> {
         ExecutionStatus::Done
     }
 
-    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), FrippyError> {
+    fn execute_threaded(&self, _: &Self::Client, _: &Message) -> Result<(), FrippyError> {
         panic!("Remind should not use frippy's threading")
     }
 
-    fn command(&self, client: &IrcClient, mut command: PluginCommand) -> Result<(), FrippyError> {
+    fn command(
+        &self,
+        client: &Self::Client,
+        mut command: PluginCommand,
+    ) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
             client
                 .send_notice(&command.source, &ErrorKind::InvalidCommand.to_string())
@@ -248,14 +259,14 @@ impl<T: Database> Plugin for Remind<T> {
         Ok(())
     }
 
-    fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &Self::Client, _: PluginCommand) -> Result<String, String> {
         Err(String::from(
             "Evaluation of commands is not implemented for remind at this time",
         ))
     }
 }
 
-impl<T: Database> fmt::Debug for Remind<T> {
+impl<T: Database, C: FrippyClient> fmt::Debug for Remind<T, C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Remind {{ ... }}")
     }

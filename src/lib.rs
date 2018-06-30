@@ -60,23 +60,37 @@ pub mod plugin;
 pub mod plugins;
 pub mod utils;
 
+use plugin::*;
+
+use error::*;
+use failure::ResultExt;
+
+pub use irc::client::data::Config;
+use irc::client::ext::ClientExt;
+use irc::client::reactor::IrcReactor;
+use irc::client::{Client, IrcClient};
+use irc::error::IrcError;
+use irc::proto::{command::Command, Message};
+
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
 use std::thread;
 
-use error::*;
-use failure::ResultExt;
-pub use irc::client::prelude::*;
-pub use irc::error::IrcError;
+pub trait FrippyClient: Client + Send + Sync + Clone + fmt::Debug {
+    fn current_nickname(&self) -> &str;
+}
 
-use plugin::*;
+impl FrippyClient for IrcClient {
+    fn current_nickname(&self) -> &str {
+        self.current_nickname()
+    }
+}
 
 /// The bot which contains the main logic.
-#[derive(Default)]
 pub struct Bot<'a> {
     prefix: &'a str,
-    plugins: ThreadedPlugins,
+    plugins: ThreadedPlugins<IrcClient>,
 }
 
 impl<'a> Bot<'a> {
@@ -93,7 +107,7 @@ impl<'a> Bot<'a> {
     /// use frippy::Bot;
     /// let mut bot = Bot::new(".");
     /// ```
-    pub fn new(cmd_prefix: &'a str) -> Bot<'a> {
+    pub fn new(cmd_prefix: &'a str) -> Self {
         Bot {
             prefix: cmd_prefix,
             plugins: ThreadedPlugins::new(),
@@ -110,7 +124,10 @@ impl<'a> Bot<'a> {
     /// let mut bot = frippy::Bot::new(".");
     /// bot.add_plugin(plugins::help::Help::new());
     /// ```
-    pub fn add_plugin<T: Plugin + 'static>(&mut self, plugin: T) {
+    pub fn add_plugin<T>(&mut self, plugin: T)
+    where
+        T: Plugin<Client = IrcClient> + 'static,
+    {
         self.plugins.add(plugin);
     }
 
@@ -179,12 +196,15 @@ impl<'a> Bot<'a> {
     }
 }
 
-fn process_msg(
-    client: &IrcClient,
-    mut plugins: ThreadedPlugins,
+fn process_msg<C>(
+    client: &C,
+    mut plugins: ThreadedPlugins<C>,
     prefix: &str,
     message: Message,
-) -> Result<(), IrcError> {
+) -> Result<(), IrcError>
+where
+    C: FrippyClient + 'static,
+{
     // Log any channels we join
     if let Command::JOIN(ref channel, _, _) = message.command {
         if message.source_nickname().unwrap() == client.current_nickname() {
@@ -207,19 +227,22 @@ fn process_msg(
     Ok(())
 }
 
-#[derive(Clone, Default, Debug)]
-struct ThreadedPlugins {
-    plugins: HashMap<String, Arc<Plugin>>,
+#[derive(Clone, Debug)]
+struct ThreadedPlugins<C: FrippyClient> {
+    plugins: HashMap<String, Arc<Plugin<Client = C>>>,
 }
 
-impl ThreadedPlugins {
-    pub fn new() -> ThreadedPlugins {
+impl<C: FrippyClient + 'static> ThreadedPlugins<C> {
+    pub fn new() -> Self {
         ThreadedPlugins {
             plugins: HashMap::new(),
         }
     }
 
-    pub fn add<T: Plugin + 'static>(&mut self, plugin: T) {
+    pub fn add<T>(&mut self, plugin: T)
+    where
+        T: Plugin<Client = C> + 'static,
+    {
         let name = plugin.name().to_lowercase();
         let safe_plugin = Arc::new(plugin);
 
@@ -232,7 +255,7 @@ impl ThreadedPlugins {
 
     /// Runs the execute functions on all plugins.
     /// Any errors that occur are printed right away.
-    pub fn execute_plugins(&mut self, client: &IrcClient, message: Message) {
+    pub fn execute_plugins(&mut self, client: &C, message: Message) {
         let message = Arc::new(message);
 
         for (name, plugin) in self.plugins.clone() {
@@ -273,7 +296,7 @@ impl ThreadedPlugins {
 
     pub fn handle_command(
         &mut self,
-        client: &IrcClient,
+        client: &C,
         mut command: PluginCommand,
     ) -> Result<(), FrippyError> {
         // Check if there is a plugin for this command
@@ -300,7 +323,7 @@ impl ThreadedPlugins {
     }
 }
 
-impl fmt::Display for ThreadedPlugins {
+impl<C: FrippyClient> fmt::Display for ThreadedPlugins<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let plugin_names = self.plugins
             .iter()

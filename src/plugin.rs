@@ -20,17 +20,19 @@ pub enum ExecutionStatus {
 /// `Plugin` has to be implemented for any struct that should be usable
 /// as a `Plugin` in frippy.
 pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
+    type Client;
     /// Handles messages which are not commands or returns
     /// [`RequiresThread`](enum.ExecutionStatus.html#variant.RequiresThread)
     /// if [`execute_threaded()`](trait.Plugin.html#tymethod.execute_threaded) should be used instead.
-    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus;
+    fn execute(&self, client: &Self::Client, message: &Message) -> ExecutionStatus;
     /// Handles messages which are not commands in a new thread.
-    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError>;
+    fn execute_threaded(&self, client: &Self::Client, message: &Message)
+        -> Result<(), FrippyError>;
     /// Handles any command directed at this plugin.
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError>;
+    fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError>;
     /// Similar to [`command()`](trait.Plugin.html#tymethod.command) but return a String instead of
     /// sending messages directly to IRC.
-    fn evaluate(&self, client: &IrcClient, command: PluginCommand) -> Result<String, String>;
+    fn evaluate(&self, client: &Self::Client, command: PluginCommand) -> Result<String, String>;
 }
 
 /// `PluginName` is required by [`Plugin`](trait.Plugin.html).

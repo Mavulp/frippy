@@ -36,9 +36,9 @@ impl<C: FrippyClient> Plugin for Help<C> {
         client
             .send_notice(
                 &command.source,
-                "Available commands: help, currency, tell, factoids, remind\r\n\
+                "Available commands: help, tell, factoids, remind\r\n\
                  For more detailed help call help on the specific command.\r\n\
-                 Example: 'currency help'",
+                 Example: 'remind help'",
             )
             .context(FrippyErrorKind::Connection)?;
 

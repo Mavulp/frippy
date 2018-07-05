@@ -75,7 +75,7 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
                 .any(|option| option.is_some())
             {
                 if !online.contains(&receiver) {
-                    online.push(receiver);
+                    // online.push(receiver);
                 }
                 // TODO Change this when https://github.com/aatxe/irc/issues/136 gets resolved
                 //continue;

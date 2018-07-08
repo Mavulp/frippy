@@ -48,7 +48,7 @@ fn convert_value(lua: &Lua, sval: SerdeValue, max_recurs: usize) -> Result<LuaVa
         SerdeValue::Bool(b) => LuaValue::Boolean(b),
         SerdeValue::String(s) => LuaValue::String(lua.create_string(&s)?),
         SerdeValue::Number(n) => {
-            let f = n.as_f64().ok_or(RuntimeError(String::from(
+            let f = n.as_f64().ok_or_else(|| RuntimeError(String::from(
                 "Failed to convert number into double",
             )))?;
             LuaValue::Number(f)

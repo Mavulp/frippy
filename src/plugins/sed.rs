@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use antidote::RwLock;
 use circular_queue::CircularQueue;
-use regex::{Regex, RegexBuilder};
+use regex::{Regex, RegexBuilder, Captures};
 
 use irc::client::prelude::*;
 
@@ -64,14 +64,13 @@ impl<C: FrippyClient> Sed<C> {
         output
     }
 
-    fn run_regex(&self, channel: &str, message: &str) -> Result<String, SedError> {
+    fn run_regex(&self, channel: &str, captures: &Captures) -> Result<String, SedError> {
         let mut global_match = false;
         let mut case_insens = false;
         let mut ign_whitespace = false;
         let mut swap_greed = false;
         let mut enable_unicode = true;
 
-        let captures = RE.captures(message).unwrap();
         debug!("{:?}", captures);
 
         let first = self.format_escaped(captures.get(1).unwrap().as_str());
@@ -119,20 +118,21 @@ impl<C: FrippyClient> Plugin for Sed<C> {
     fn execute(&self, client: &Self::Client, message: &Message) -> ExecutionStatus {
         match message.command {
             Command::PRIVMSG(_, ref content) => {
-                let channel = message.response_target().unwrap();
-                if channel == message.source_nickname().unwrap() {
+                let channel = message.response_target().unwrap_or("");
+                let user = message.source_nickname().unwrap_or("");
+                if channel == user {
                     return ExecutionStatus::Done;
                 }
 
-                if RE.is_match(content) {
-                    let result = match self.run_regex(channel, content) {
+                if let Some(captures) = RE.captures(content) {
+                    let result = match self.run_regex(channel, &captures) {
                         Ok(msg) => client.send_privmsg(channel, &msg),
                         Err(e) => match e.kind() {
                             ErrorKind::InvalidRegex => {
                                 let err = e.cause().unwrap().to_string();
-                                client.send_notice(channel, &err.replace('\n', "\r\n"))
+                                client.send_notice(user, &err.replace('\n', "\r\n"))
                             }
-                            _ => client.send_notice(channel, &e.to_string()),
+                            _ => client.send_notice(user, &e.to_string()),
                         },
                     };
 

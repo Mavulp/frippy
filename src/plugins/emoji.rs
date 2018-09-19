@@ -67,7 +67,7 @@ impl<C: FrippyClient> Emoji<C> {
         let mut current = EmojiHandle::default();
 
         for c in string.chars() {
-            if !self.is_emoji(&c) {
+            if !self.is_emoji(c) {
                 continue;
             }
 
@@ -92,10 +92,10 @@ impl<C: FrippyClient> Emoji<C> {
         emojis
     }
 
-    fn is_emoji(&self, c: &char) -> bool {
+    fn is_emoji(&self, c: char) -> bool {
         // Emoji ranges from stackoverflow:
         // https://stackoverflow.com/questions/30757193/find-out-if-character-in-string-is-emoji
-        match *c { '\u{1F600}'...'\u{1F64F}'     // Emoticons
+        match c { '\u{1F600}'...'\u{1F64F}'     // Emoticons
             | '\u{1F300}'...'\u{1F5FF}'          // Misc Symbols and Pictographs
             | '\u{1F680}'...'\u{1F6FF}'          // Transport and Map
             | '\u{2600}' ...'\u{26FF}'           // Misc symbols

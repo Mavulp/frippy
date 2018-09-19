@@ -68,7 +68,7 @@ impl CommandParser {
 
             if next_state != state {
                 if state != ParseState::None {
-                    self = self.add_string_by_state(&state, cur_str)?;
+                    self = self.add_string_by_state(state, cur_str)?;
                     cur_str = String::new();
                 }
 
@@ -76,7 +76,7 @@ impl CommandParser {
             }
         }
 
-        self = self.add_string_by_state(&state, cur_str)?;
+        self = self.add_string_by_state(state, cur_str)?;
 
         if self.message.is_none() {
             return Err(ErrorKind::MissingMessage.into());
@@ -95,7 +95,7 @@ impl CommandParser {
         Ok(self)
     }
 
-    fn add_string_by_state(self, state: &ParseState, string: String) -> Result<Self, RemindError> {
+    fn add_string_by_state(self, state: ParseState, string: String) -> Result<Self, RemindError> {
         use self::ParseState::*;
         let string = Some(string);
         match state {

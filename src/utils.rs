@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::io::{self, Read};
 use std::time::Duration;
 
-use reqwest::header::Connection;
+use reqwest::header::{CONNECTION, HeaderValue};
 use reqwest::{Client, ClientBuilder};
 
 use self::error::{DownloadError, ErrorKind};
@@ -60,7 +60,7 @@ impl<'a> Url<'a> {
 
         let mut response = client
             .get(self.url.as_ref())
-            .header(Connection::close())
+            .header(CONNECTION, HeaderValue::from_static("close"))
             .send()
             .context(ErrorKind::Connection)?;
 

@@ -57,8 +57,7 @@ fn main() {
 
     // Print any errors that caused frippy to shut down
     if let Err(e) = run() {
-        let text = e.causes()
-            .skip(1)
+        let text = e.iter_causes()
             .fold(format!("{}", e), |acc, err| format!("{}: {}", acc, err));
         error!("{}", text);
     }

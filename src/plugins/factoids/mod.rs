@@ -228,7 +228,7 @@ impl<T: Database, C: Client> Factoids<T, C> {
 
     fn help(&self) -> &str {
         "usage: factoids <subcommand>\r\n\
-         subcommands: add, fromurl, remove, info, get, exec, help"
+         subcommands: add, fromurl, remove, get, info, exec, help"
     }
 }
 

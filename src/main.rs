@@ -31,6 +31,7 @@ use irc::client::reactor::IrcReactor;
 
 use frippy::plugins::emoji::Emoji;
 use frippy::plugins::factoids::Factoids;
+use frippy::plugins::quote::Quote;
 use frippy::plugins::help::Help;
 use frippy::plugins::keepnick::KeepNick;
 use frippy::plugins::remind::Remind;
@@ -122,12 +123,14 @@ fn run() -> Result<(), Error> {
                         Ok(_) => {
                             let pool = Arc::new(pool);
                             bot.add_plugin(Factoids::new(pool.clone()));
+                            bot.add_plugin(Quote::new(pool.clone()));
                             bot.add_plugin(Tell::new(pool.clone()));
                             bot.add_plugin(Remind::new(pool.clone()));
                             info!("Connected to MySQL server")
                         }
                         Err(e) => {
                             bot.add_plugin(Factoids::new(HashMap::new()));
+                            bot.add_plugin(Quote::new(HashMap::new()));
                             bot.add_plugin(Tell::new(HashMap::new()));
                             bot.add_plugin(Remind::new(HashMap::new()));
                             error!("Failed to run migrations: {}", e);
@@ -137,6 +140,7 @@ fn run() -> Result<(), Error> {
                 }
             } else {
                 bot.add_plugin(Factoids::new(HashMap::new()));
+                bot.add_plugin(Quote::new(HashMap::new()));
                 bot.add_plugin(Tell::new(HashMap::new()));
                 bot.add_plugin(Remind::new(HashMap::new()));
             }
@@ -147,6 +151,7 @@ fn run() -> Result<(), Error> {
                 error!("frippy was not built with the mysql feature")
             }
             bot.add_plugin(Factoids::new(HashMap::new()));
+            bot.add_plugin(Quote::new(HashMap::new()));
             bot.add_plugin(Tell::new(HashMap::new()));
             bot.add_plugin(Remind::new(HashMap::new()));
         }

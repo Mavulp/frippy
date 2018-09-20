@@ -36,7 +36,7 @@ impl<C: FrippyClient> Plugin for Help<C> {
         client
             .send_notice(
                 &command.source,
-                "Available commands: help, tell, factoids, remind\r\n\
+                "Available commands: help, tell, factoids, remind, quote\r\n\
                  For more detailed help call help on the specific command.\r\n\
                  Example: 'remind help'",
             )

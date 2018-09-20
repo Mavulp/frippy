@@ -4,6 +4,7 @@ use failure::Fail;
 
 pub fn log_error(e: &FrippyError) {
     let text = e.causes()
+        .skip(1)
         .fold(format!("{}", e), |acc, err| format!("{}: {}", acc, err));
     error!("{}", text);
 }

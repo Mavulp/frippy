@@ -46,7 +46,9 @@ pub trait Database: Send + Sync {
 }
 
 // HashMap
-impl<S: ::std::hash::BuildHasher + Send + Sync> Database for HashMap<(String, String, i32), Quote, S> {
+impl<S: ::std::hash::BuildHasher + Send + Sync> Database
+    for HashMap<(String, String, i32), Quote, S>
+{
     fn insert_quote(&mut self, quote: &NewQuote) -> Result<(), QuoteError> {
         let quote = Quote {
             quotee: quote.quotee.to_owned(),
@@ -66,13 +68,17 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database for HashMap<(String, St
     }
 
     fn get_quote(&self, quotee: &str, channel: &str, idx: i32) -> Result<Quote, QuoteError> {
-        Ok(self.get(&(quotee.to_owned(), channel.to_owned(), idx))
+        Ok(self
+            .get(&(quotee.to_owned(), channel.to_owned(), idx))
             .cloned()
             .ok_or(ErrorKind::NotFound)?)
     }
 
     fn count_quotes(&self, quotee: &str, channel: &str) -> Result<i32, QuoteError> {
-        Ok(self.iter().filter(|&(&(ref n, ref c, _), _)| n == quotee && c == channel).count() as i32)
+        Ok(self
+            .iter()
+            .filter(|&(&(ref n, ref c, _), _)| n == quotee && c == channel)
+            .count() as i32)
     }
 }
 

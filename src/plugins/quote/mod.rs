@@ -3,9 +3,9 @@ use std::marker::PhantomData;
 use std::str::FromStr;
 
 use antidote::RwLock;
+use chrono::NaiveDateTime;
 use irc::client::prelude::*;
 use rand::{thread_rng, Rng};
-use chrono::NaiveDateTime;
 use time;
 
 use plugin::*;
@@ -56,7 +56,8 @@ impl<T: Database, C: Client> Quote<T, C> {
             created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
         };
 
-        Ok(self.quotes
+        Ok(self
+            .quotes
             .write()
             .insert_quote(&quote)
             .map(|()| "Successfully added!")?)
@@ -92,9 +93,11 @@ impl<T: Database, C: Client> Quote<T, C> {
         }
 
         let idx = match command.tokens.len() {
-            1 => thread_rng().gen_range(1, count + 1),
+            1 | _ if command.tokens[1].is_empty() => thread_rng().gen_range(1, count + 1),
             _ => {
-                let idx = match i32::from_str(&command.tokens[1]) {
+                let idx_string = &command.tokens[1];
+
+                let idx = match i32::from_str(idx_string) {
                     Ok(i) => i,
                     Err(_) => Err(ErrorKind::InvalidIndex)?,
                 };
@@ -107,13 +110,16 @@ impl<T: Database, C: Client> Quote<T, C> {
             }
         };
 
-        let quote = self.quotes
+        let quote = self
+            .quotes
             .read()
             .get_quote(quotee, channel, idx)
             .context(ErrorKind::NotFound)?;
 
-
-        Ok(format!("\"{}\" - {}[{}/{}]", quote.content, quote.quotee, idx, count))
+        Ok(format!(
+            "\"{}\" - {}[{}/{}]",
+            quote.content, quote.quotee, idx, count
+        ))
     }
 
     fn info(&self, command: &PluginCommand) -> Result<String, QuoteError> {

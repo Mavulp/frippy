@@ -92,21 +92,20 @@ impl<T: Database, C: Client> Quote<T, C> {
             Err(ErrorKind::NotFound)?;
         }
 
-        let idx = match command.tokens.len() {
-            1 | _ if command.tokens[1].is_empty() => thread_rng().gen_range(1, count + 1),
-            _ => {
-                let idx_string = &command.tokens[1];
+        let len = command.tokens.len();
+        let idx = if len < 2 || command.tokens[1].is_empty() {
+            thread_rng().gen_range(1, count + 1)
+        } else {
+            let idx_string = &command.tokens[1];
+            let idx = match i32::from_str(idx_string) {
+                Ok(i) => i,
+                Err(_) => Err(ErrorKind::InvalidIndex)?,
+            };
 
-                let idx = match i32::from_str(idx_string) {
-                    Ok(i) => i,
-                    Err(_) => Err(ErrorKind::InvalidIndex)?,
-                };
-
-                if idx < 0 {
-                    count + idx + 1
-                } else {
-                    idx
-                }
+            if idx < 0 {
+                count + idx + 1
+            } else {
+                idx
             }
         };
 

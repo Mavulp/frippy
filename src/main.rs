@@ -30,10 +30,10 @@ use glob::glob;
 use irc::client::reactor::IrcReactor;
 
 use frippy::plugins::emoji::Emoji;
-use frippy::plugins::factoids::Factoids;
-use frippy::plugins::quote::Quote;
+use frippy::plugins::factoid::Factoid;
 use frippy::plugins::help::Help;
 use frippy::plugins::keepnick::KeepNick;
+use frippy::plugins::quote::Quote;
 use frippy::plugins::remind::Remind;
 use frippy::plugins::sed::Sed;
 use frippy::plugins::tell::Tell;
@@ -58,7 +58,8 @@ fn main() {
 
     // Print any errors that caused frippy to shut down
     if let Err(e) = run() {
-        let text = e.iter_causes()
+        let text = e
+            .iter_causes()
             .fold(format!("{}", e), |acc, err| format!("{}: {}", acc, err));
         error!("{}", text);
     }
@@ -122,14 +123,14 @@ fn run() -> Result<(), Error> {
                     Ok(pool) => match embedded_migrations::run(&*pool.get()?) {
                         Ok(_) => {
                             let pool = Arc::new(pool);
-                            bot.add_plugin(Factoids::new(pool.clone()));
+                            bot.add_plugin(Factoid::new(pool.clone()));
                             bot.add_plugin(Quote::new(pool.clone()));
                             bot.add_plugin(Tell::new(pool.clone()));
                             bot.add_plugin(Remind::new(pool.clone()));
                             info!("Connected to MySQL server")
                         }
                         Err(e) => {
-                            bot.add_plugin(Factoids::new(HashMap::new()));
+                            bot.add_plugin(Factoid::new(HashMap::new()));
                             bot.add_plugin(Quote::new(HashMap::new()));
                             bot.add_plugin(Tell::new(HashMap::new()));
                             bot.add_plugin(Remind::new(HashMap::new()));
@@ -139,7 +140,7 @@ fn run() -> Result<(), Error> {
                     Err(e) => error!("Failed to connect to database: {}", e),
                 }
             } else {
-                bot.add_plugin(Factoids::new(HashMap::new()));
+                bot.add_plugin(Factoid::new(HashMap::new()));
                 bot.add_plugin(Quote::new(HashMap::new()));
                 bot.add_plugin(Tell::new(HashMap::new()));
                 bot.add_plugin(Remind::new(HashMap::new()));
@@ -150,7 +151,7 @@ fn run() -> Result<(), Error> {
             if mysql_url.is_some() {
                 error!("frippy was not built with the mysql feature")
             }
-            bot.add_plugin(Factoids::new(HashMap::new()));
+            bot.add_plugin(Factoid::new(HashMap::new()));
             bot.add_plugin(Quote::new(HashMap::new()));
             bot.add_plugin(Tell::new(HashMap::new()));
             bot.add_plugin(Remind::new(HashMap::new()));

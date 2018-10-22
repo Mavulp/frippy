@@ -137,8 +137,7 @@ impl<C: FrippyClient> Plugin for Emoji<C> {
             .send_notice(
                 &command.source,
                 "This Plugin does not implement any commands.",
-            )
-            .context(FrippyErrorKind::Connection)?;
+            ).context(FrippyErrorKind::Connection)?;
 
         Ok(())
     }

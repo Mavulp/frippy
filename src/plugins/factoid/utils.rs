@@ -48,9 +48,9 @@ fn convert_value(lua: &Lua, sval: SerdeValue, max_recurs: usize) -> Result<LuaVa
         SerdeValue::Bool(b) => LuaValue::Boolean(b),
         SerdeValue::String(s) => LuaValue::String(lua.create_string(&s)?),
         SerdeValue::Number(n) => {
-            let f = n.as_f64().ok_or_else(|| RuntimeError(String::from(
-                "Failed to convert number into double",
-            )))?;
+            let f = n.as_f64().ok_or_else(|| {
+                RuntimeError(String::from("Failed to convert number into double"))
+            })?;
             LuaValue::Number(f)
         }
         SerdeValue::Array(arr) => {
@@ -75,7 +75,8 @@ fn convert_value(lua: &Lua, sval: SerdeValue, max_recurs: usize) -> Result<LuaVa
 }
 
 pub fn json_decode(lua: &Lua, json: String) -> Result<LuaValue, LuaError> {
-    let ser_val: SerdeValue = serde_json::from_str(&json).map_err(|e| RuntimeError(e.to_string()))?;
+    let ser_val: SerdeValue =
+        serde_json::from_str(&json).map_err(|e| RuntimeError(e.to_string()))?;
 
     convert_value(lua, ser_val, 25)
 }

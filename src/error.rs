@@ -3,7 +3,8 @@
 use failure::Fail;
 
 pub fn log_error(e: &FrippyError) {
-    let text = e.causes()
+    let text = e
+        .causes()
         .skip(1)
         .fold(format!("{}", e), |acc, err| format!("{}: {}", acc, err));
     error!("{}", text);
@@ -29,9 +30,9 @@ pub enum ErrorKind {
     #[fail(display = "A Tell error has occured")]
     Tell,
 
-    /// A Factoids error
-    #[fail(display = "A Factoids error has occured")]
-    Factoids,
+    /// A Factoid error
+    #[fail(display = "A Factoid error has occured")]
+    Factoid,
 
     /// A Quote error
     #[fail(display = "A Quote error has occured")]

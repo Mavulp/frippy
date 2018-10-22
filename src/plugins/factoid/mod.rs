@@ -32,14 +32,14 @@ enum FactoidResponse {
 }
 
 #[derive(PluginName)]
-pub struct Factoids<T: Database, C: Client> {
+pub struct Factoid<T: Database, C: Client> {
     factoids: RwLock<T>,
     phantom: PhantomData<C>,
 }
 
-impl<T: Database, C: Client> Factoids<T, C> {
+impl<T: Database, C: Client> Factoid<T, C> {
     pub fn new(db: T) -> Self {
-        Factoids {
+        Factoid {
             factoids: RwLock::new(db),
             phantom: PhantomData,
         }
@@ -50,7 +50,7 @@ impl<T: Database, C: Client> Factoids<T, C> {
         name: &str,
         content: &str,
         author: &str,
-    ) -> Result<&str, FactoidsError> {
+    ) -> Result<&str, FactoidError> {
         let count = self.factoids.read().count_factoids(name)?;
         let tm = time::now().to_timespec();
 
@@ -62,13 +62,14 @@ impl<T: Database, C: Client> Factoids<T, C> {
             created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
         };
 
-        Ok(self.factoids
+        Ok(self
+            .factoids
             .write()
             .insert_factoid(&factoid)
             .map(|()| "Successfully added!")?)
     }
 
-    fn add(&self, command: &mut PluginCommand) -> Result<&str, FactoidsError> {
+    fn add(&self, command: &mut PluginCommand) -> Result<&str, FactoidError> {
         if command.tokens.len() < 2 {
             Err(ErrorKind::InvalidCommand)?;
         }
@@ -79,7 +80,7 @@ impl<T: Database, C: Client> Factoids<T, C> {
         Ok(self.create_factoid(&name, &content, &command.source)?)
     }
 
-    fn add_from_url(&self, command: &mut PluginCommand) -> Result<&str, FactoidsError> {
+    fn add_from_url(&self, command: &mut PluginCommand) -> Result<&str, FactoidError> {
         if command.tokens.len() < 2 {
             Err(ErrorKind::InvalidCommand)?;
         }
@@ -94,7 +95,7 @@ impl<T: Database, C: Client> Factoids<T, C> {
         Ok(self.create_factoid(&name, &content, &command.source)?)
     }
 
-    fn remove(&self, command: &mut PluginCommand) -> Result<&str, FactoidsError> {
+    fn remove(&self, command: &mut PluginCommand) -> Result<&str, FactoidError> {
         if command.tokens.is_empty() {
             Err(ErrorKind::InvalidCommand)?;
         }
@@ -108,7 +109,7 @@ impl<T: Database, C: Client> Factoids<T, C> {
         }
     }
 
-    fn get(&self, command: &PluginCommand) -> Result<String, FactoidsError> {
+    fn get(&self, command: &PluginCommand) -> Result<String, FactoidError> {
         let (name, idx) = match command.tokens.len() {
             0 => Err(ErrorKind::InvalidCommand)?,
             1 => {
@@ -132,7 +133,8 @@ impl<T: Database, C: Client> Factoids<T, C> {
             }
         };
 
-        let factoid = self.factoids
+        let factoid = self
+            .factoids
             .read()
             .get_factoid(name, idx)
             .context(ErrorKind::NotFound)?;
@@ -142,7 +144,7 @@ impl<T: Database, C: Client> Factoids<T, C> {
         Ok(format!("{}: {}", factoid.name, message))
     }
 
-    fn info(&self, command: &PluginCommand) -> Result<String, FactoidsError> {
+    fn info(&self, command: &PluginCommand) -> Result<String, FactoidError> {
         match command.tokens.len() {
             0 => Err(ErrorKind::InvalidCommand)?,
             1 => {
@@ -168,7 +170,7 @@ impl<T: Database, C: Client> Factoids<T, C> {
         }
     }
 
-    fn exec(&self, mut command: PluginCommand) -> Result<String, FactoidsError> {
+    fn exec(&self, mut command: PluginCommand) -> Result<String, FactoidError> {
         if command.tokens.is_empty() {
             Err(ErrorKind::InvalidIndex)?
         } else {
@@ -232,7 +234,7 @@ impl<T: Database, C: Client> Factoids<T, C> {
     }
 }
 
-impl<T: Database, C: FrippyClient> Plugin for Factoids<T, C> {
+impl<T: Database, C: FrippyClient> Plugin for Factoid<T, C> {
     type Client = C;
     fn execute(&self, _: &Self::Client, message: &Message) -> ExecutionStatus {
         match message.command {
@@ -292,7 +294,8 @@ impl<T: Database, C: FrippyClient> Plugin for Factoids<T, C> {
         let sub_command = command.tokens.remove(0);
         let result = match sub_command.as_ref() {
             "add" => self.add(&mut command).map(|s| Private(s.to_owned())),
-            "fromurl" => self.add_from_url(&mut command)
+            "fromurl" => self
+                .add_from_url(&mut command)
                 .map(|s| Private(s.to_owned())),
             "remove" => self.remove(&mut command).map(|s| Private(s.to_owned())),
             "get" => self.get(&command).map(Public),
@@ -316,7 +319,7 @@ impl<T: Database, C: FrippyClient> Plugin for Factoids<T, C> {
                 client
                     .send_notice(&source, &message)
                     .context(FrippyErrorKind::Connection)?;
-                Err(e).context(FrippyErrorKind::Factoids)?
+                Err(e).context(FrippyErrorKind::Factoid)?
             }
         }
 
@@ -325,20 +328,20 @@ impl<T: Database, C: FrippyClient> Plugin for Factoids<T, C> {
 
     fn evaluate(&self, _: &Self::Client, _: PluginCommand) -> Result<String, String> {
         Err(String::from(
-            "Evaluation of commands is not implemented for Factoids at this time",
+            "Evaluation of commands is not implemented for Factoid at this time",
         ))
     }
 }
 
-impl<T: Database, C: FrippyClient> fmt::Debug for Factoids<T, C> {
+impl<T: Database, C: FrippyClient> fmt::Debug for Factoid<T, C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Factoids {{ ... }}")
+        write!(f, "Factoid {{ ... }}")
     }
 }
 
 pub mod error {
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
-    #[error = "FactoidsError"]
+    #[error = "FactoidError"]
     pub enum ErrorKind {
         /// Invalid command error
         #[fail(display = "Invalid Command")]

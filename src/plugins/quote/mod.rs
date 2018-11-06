@@ -139,7 +139,18 @@ impl<T: Database, C: Client> Quote<T, C> {
                 let quotee = &command.tokens[0];
                 let channel = &command.target;
                 let idx = i32::from_str(&command.tokens[1]).context(ErrorKind::InvalidIndex)?;
-                let quote = self.quotes.read().get_quote(quotee, channel, idx)?;
+
+                let idx = if idx < 0 {
+                    self.quotes.read().count_quotes(quotee, channel)? + idx + 1
+                } else {
+                    idx
+                };
+
+                let quote = self
+                    .quotes
+                    .read()
+                    .get_quote(quotee, channel, idx)
+                    .context(ErrorKind::NotFound)?;
 
                 Ok(format!(
                     "{}'s quote was added by {} at {} UTC",

@@ -17,6 +17,7 @@ use error::ErrorKind as FrippyErrorKind;
 use error::FrippyError;
 use failure::Fail;
 use failure::ResultExt;
+use log::{debug, trace};
 
 pub mod database;
 use self::database::Database;
@@ -107,7 +108,8 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
     }
 
     fn on_namelist(&self, client: &C, channel: &str) -> Result<(), FrippyError> {
-        let receivers = self.tells
+        let receivers = self
+            .tells
             .read()
             .get_receivers()
             .context(FrippyErrorKind::Tell)?;
@@ -130,6 +132,8 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
     }
 
     fn send_tells(&self, client: &C, receiver: &str) -> Result<(), FrippyError> {
+        trace!("Checking {} for tells", receiver);
+
         if client.current_nickname() == receiver {
             return Ok(());
         }
@@ -153,14 +157,13 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
             let dur = now - Duration::new(tell.time.timestamp() as u64, 0);
             let human_dur = format_duration(dur);
 
+            let message = format!(
+                "Tell from {} {} ago: {}",
+                tell.sender, human_dur, tell.message
+            );
+
             client
-                .send_notice(
-                    receiver,
-                    &format!(
-                        "Tell from {} {} ago: {}",
-                        tell.sender, human_dur, tell.message
-                    ),
-                )
+                .send_notice(receiver, &message)
                 .context(FrippyErrorKind::Connection)?;
 
             debug!(
@@ -194,7 +197,7 @@ impl<T: Database, C: FrippyClient> Plugin for Tell<T, C> {
         let res = match message.command {
             Command::JOIN(_, _, _) => self.send_tells(client, message.source_nickname().unwrap()),
             Command::NICK(ref nick) => self.send_tells(client, nick),
-            Command::PRIVMSG(ref nick, _) => self.send_tells(client, nick),
+            Command::PRIVMSG(_, _) => self.send_tells(client, message.source_nickname().unwrap()),
             Command::Response(resp, ref chan_info, _) => {
                 if resp == Response::RPL_NAMREPLY {
                     debug!("NAMREPLY info: {:?}", chan_info);

@@ -17,7 +17,7 @@
 //! let mut bot = Bot::new(".");
 //!
 //! bot.add_plugin(plugins::help::Help::new());
-//! bot.add_plugin(plugins::emoji::Emoji::new());
+//! bot.add_plugin(plugins::unicode::Unicode::new());
 //!
 //! bot.connect(&mut reactor, &config).unwrap();
 //! reactor.run().unwrap();
@@ -50,11 +50,11 @@ extern crate chrono;
 extern crate circular_queue;
 extern crate humantime;
 extern crate irc;
+extern crate rand;
 extern crate regex;
 extern crate reqwest;
 extern crate serde_json;
 extern crate time;
-extern crate rand;
 
 pub mod error;
 pub mod plugin;
@@ -326,7 +326,8 @@ impl<C: FrippyClient + 'static> ThreadedPlugins<C> {
 
 impl<C: FrippyClient> fmt::Display for ThreadedPlugins<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let plugin_names = self.plugins
+        let plugin_names = self
+            .plugins
             .iter()
             .map(|(_, p)| p.name().to_owned())
             .collect::<Vec<String>>();

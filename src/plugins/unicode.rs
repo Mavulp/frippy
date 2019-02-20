@@ -1,7 +1,6 @@
 extern crate unicode_names;
 
 use std::marker::PhantomData;
-use std::fmt;
 
 use irc::client::prelude::*;
 
@@ -11,7 +10,6 @@ use FrippyClient;
 use error::ErrorKind as FrippyErrorKind;
 use error::FrippyError;
 use failure::Fail;
-use failure::ResultExt;
 
 #[derive(PluginName, Default, Debug)]
 pub struct Unicode<C> {
@@ -60,7 +58,7 @@ impl<C: FrippyClient> Unicode<C> {
 impl<C: FrippyClient> Plugin for Unicode<C> {
     type Client = C;
 
-    fn execute(&self, client: &Self::Client, message: &Message) -> ExecutionStatus {
+    fn execute(&self, _: &Self::Client, _: &Message) -> ExecutionStatus {
         ExecutionStatus::Done
     }
 

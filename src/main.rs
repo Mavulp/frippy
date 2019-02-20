@@ -29,7 +29,7 @@ use std::sync::Arc;
 use glob::glob;
 use irc::client::reactor::IrcReactor;
 
-use frippy::plugins::emoji::Emoji;
+use frippy::plugins::unicode::Unicode;
 use frippy::plugins::factoid::Factoid;
 use frippy::plugins::help::Help;
 use frippy::plugins::keepnick::KeepNick;
@@ -108,7 +108,7 @@ fn run() -> Result<(), Error> {
         bot.add_plugin(Help::new());
         bot.add_plugin(UrlTitles::new(1024));
         bot.add_plugin(Sed::new(60));
-        bot.add_plugin(Emoji::new());
+        bot.add_plugin(Unicode::new());
         bot.add_plugin(KeepNick::new());
 
         #[cfg(feature = "mysql")]

@@ -35,7 +35,7 @@ impl<C: FrippyClient> Unicode<C> {
     fn format_response(&self, content: &str) -> String {
         let character = content.chars().next();
         if let Some(c) = character {
-            let mut buf = [0; 2];
+            let mut buf = [0; 4];
 
             let byte_string = c
                 .encode_utf8(&mut buf)

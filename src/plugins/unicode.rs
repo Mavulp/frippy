@@ -31,27 +31,27 @@ impl<C: FrippyClient> Unicode<C> {
     }
 
     fn format_response(&self, content: &str) -> String {
-        let character = content.chars().next();
-        if let Some(c) = character {
-            let mut buf = [0; 4];
+        let character = content
+            .chars()
+            .next()
+            .expect("content contains at least one character");
 
-            let byte_string = c
-                .encode_utf8(&mut buf)
-                .as_bytes()
-                .iter()
-                .map(|b| format!("{:#b}", b))
-                .collect::<Vec<String>>()
-                .join(",");
+        let mut buf = [0; 4];
 
-            let name = self.get_name(c);
+        let byte_string = character
+            .encode_utf8(&mut buf)
+            .as_bytes()
+            .iter()
+            .map(|b| format!("{:#b}", b))
+            .collect::<Vec<String>>()
+            .join(",");
 
-            format!(
-                "{} is '{}' | UTF-8: {2:#x} ({2}), Bytes: [{3}]",
-                c, name, c as u32, byte_string
-            )
-        } else {
-            String::from("No non-space character was found.")
-        }
+        let name = self.get_name(character);
+
+        format!(
+            "{} is '{}' | UTF-8: {2:#x} ({2}), Bytes: [{3}]",
+            character, name, character as u32, byte_string
+        )
     }
 }
 
@@ -67,7 +67,7 @@ impl<C: FrippyClient> Plugin for Unicode<C> {
     }
 
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
-        if command.tokens.is_empty() {
+        if command.tokens.is_empty() || command.tokens[0].is_empty() {
             let msg = "No non-space character was found.";
 
             if let Err(e) = client.send_notice(command.source, msg) {

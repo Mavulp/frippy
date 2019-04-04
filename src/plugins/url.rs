@@ -45,7 +45,8 @@ impl From<Title> for String {
 
 impl Title {
     fn find_by_delimiters(body: &str, delimiters: [&str; 3]) -> Result<Self, UrlError> {
-        let title = body.find(delimiters[0])
+        let title = body
+            .find(delimiters[0])
             .map(|tag| {
                 body[tag..]
                     .find(delimiters[1])
@@ -124,7 +125,8 @@ impl<C: FrippyClient> UrlTitles<C> {
     }
 
     fn url(&self, text: &str) -> Result<String, UrlError> {
-        let url = self.grep_url(text)
+        let url = self
+            .grep_url(text)
             .ok_or(ErrorKind::MissingUrl)?
             .max_kib(self.max_kib)
             .timeout(Duration::from_secs(5));
@@ -146,11 +148,7 @@ impl<C: FrippyClient> UrlTitles<C> {
             (Err(e), _) => Err(e)?,
         };
 
-        if title.usefulness() > 1 {
-            Ok(title.into())
-        } else {
-            Err(ErrorKind::UselessTitle.into())
-        }
+        Ok(title.into())
     }
 }
 
@@ -158,11 +156,13 @@ impl<C: FrippyClient> Plugin for UrlTitles<C> {
     type Client = C;
     fn execute(&self, _: &Self::Client, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::PRIVMSG(_, ref msg) => if URL_RE.is_match(msg) {
-                ExecutionStatus::RequiresThread
-            } else {
-                ExecutionStatus::Done
-            },
+            Command::PRIVMSG(_, ref msg) => {
+                if URL_RE.is_match(msg) {
+                    ExecutionStatus::RequiresThread
+                } else {
+                    ExecutionStatus::Done
+                }
+            }
             _ => ExecutionStatus::Done,
         }
     }

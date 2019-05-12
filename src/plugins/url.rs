@@ -148,6 +148,10 @@ impl<C: FrippyClient> UrlTitles<C> {
             (Err(e), _) => Err(e)?,
         };
 
+        if title.usefulness() == 0 {
+            Err(ErrorKind::UselessTitle)?;
+        }
+
         Ok(title.into())
     }
 }

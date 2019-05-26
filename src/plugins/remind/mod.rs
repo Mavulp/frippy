@@ -134,7 +134,7 @@ impl<T: Database + 'static, C: FrippyClient> Remind<T, C> {
             author,
             time: &time,
             repeat: parser
-                .get_repeat(Duration::from_secs(600))?
+                .get_repeat(Duration::from_secs(300))?
                 .map(|d| d.as_secs() as i64),
         };
 

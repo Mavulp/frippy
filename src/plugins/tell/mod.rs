@@ -1,97 +1,116 @@
+use std::marker::PhantomData;
+
+use antidote::RwLock;
+use irc::client::data::User;
 use irc::client::prelude::*;
 
-use std::time::Duration;
-use std::sync::Mutex;
-
-use time;
 use chrono::NaiveDateTime;
 use humantime::format_duration;
+use std::time::Duration;
+use time;
 
 use plugin::*;
+use FrippyClient;
 
-use failure::Fail;
-use failure::ResultExt;
+use self::error::*;
 use error::ErrorKind as FrippyErrorKind;
 use error::FrippyError;
-use self::error::*;
+use failure::Fail;
+use failure::ResultExt;
+use log::{debug, trace};
 
 pub mod database;
 use self::database::Database;
 
-macro_rules! try_lock {
-    ( $m:expr ) => {
-        match $m.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        }
-    }
+#[derive(PluginName)]
+pub struct Tell<T: Database, C> {
+    tells: RwLock<T>,
+    phantom: PhantomData<C>,
 }
 
-#[derive(PluginName, Default)]
-pub struct Tell<T: Database> {
-    tells: Mutex<T>,
-}
-
-impl<T: Database> Tell<T> {
-    pub fn new(db: T) -> Tell<T> {
+impl<T: Database, C: FrippyClient> Tell<T, C> {
+    pub fn new(db: T) -> Self {
         Tell {
-            tells: Mutex::new(db),
+            tells: RwLock::new(db),
+            phantom: PhantomData,
         }
     }
 
-    fn tell_command(
-        &self,
-        client: &IrcClient,
-        command: PluginCommand,
-    ) -> Result<String, TellError> {
+    fn tell_command(&self, client: &C, command: PluginCommand) -> Result<String, TellError> {
         if command.tokens.len() < 2 {
-            return Ok(self.invalid_command(client));
+            return Ok(self.invalid_command().to_owned());
         }
 
-        let receiver = &command.tokens[0];
+        let mut online = Vec::new();
+
+        let receivers = command.tokens[0].split(',').filter(|&s| !s.is_empty());
         let sender = command.source;
 
-        if receiver.eq_ignore_ascii_case(client.current_nickname()) {
-            return Ok(String::from("I am right here!"));
-        }
-
-        if receiver.eq_ignore_ascii_case(&sender) {
-            return Ok(String::from("That's your name!"));
-        }
-
-        if let Some(channels) = client.list_channels() {
-            for channel in channels {
-                if let Some(users) = client.list_users(&channel) {
-                    if users
-                        .iter()
-                        .any(|u| u.get_nickname().eq_ignore_ascii_case(&receiver))
-                    {
-                        return Ok(format!("{} is currently online.", receiver));
-                    }
+        let mut no_receiver = true;
+        for receiver in receivers {
+            if receiver.eq_ignore_ascii_case(client.current_nickname())
+                || receiver.eq_ignore_ascii_case(&sender)
+            {
+                if !online.contains(&receiver) {
+                    online.push(receiver);
                 }
+                continue;
             }
+
+            let channels = client
+                .list_channels()
+                .expect("The irc crate should not be compiled with the \"nochanlists\" feature");
+
+            let find_receiver = |option: Option<Vec<User>>| {
+                option.and_then(|users| {
+                    users
+                        .into_iter()
+                        .find(|user| user.get_nickname().eq_ignore_ascii_case(&receiver))
+                })
+            };
+
+            if channels
+                .iter()
+                .map(|channel| client.list_users(&channel))
+                .map(find_receiver)
+                .any(|option| option.is_some())
+            {
+                if !online.contains(&receiver) {
+                    // online.push(receiver);
+                }
+                // TODO Change this when https://github.com/aatxe/irc/issues/136 gets resolved
+                //continue;
+            }
+
+            let tm = time::now().to_timespec();
+            let message = command.tokens[1..].join(" ");
+            let tell = database::NewTellMessage {
+                sender: &sender,
+                receiver: &receiver.to_lowercase(),
+                time: NaiveDateTime::from_timestamp(tm.sec, 0u32),
+                message: &message,
+            };
+
+            debug!("Saving tell for {:?}", receiver);
+            self.tells.write().insert_tell(&tell)?;
+            no_receiver = false;
         }
 
-        let tm = time::now().to_timespec();
-        let message = command.tokens[1..].join(" ");
-        let tell = database::NewTellMessage {
-            sender: &sender,
-            receiver: &receiver.to_lowercase(),
-            time: NaiveDateTime::from_timestamp(tm.sec, 0u32),
-            message: &message,
-        };
-
-        try_lock!(self.tells).insert_tell(&tell)?;
-
-        Ok(String::from("Got it!"))
+        Ok(if no_receiver && online.is_empty() {
+            String::from("Invalid receiver.")
+        } else {
+            match online.len() {
+                0 => format!("Got it!"),
+                1 => format!("{} is currently online.", online[0]),
+                _ => format!("{} are currently online.", online.join(", ")),
+            }
+        })
     }
 
-    fn on_namelist(
-        &self,
-        client: &IrcClient,
-        channel: &str,
-    ) -> Result<(), FrippyError> {
-        let receivers = try_lock!(self.tells)
+    fn on_namelist(&self, client: &C, channel: &str) -> Result<(), FrippyError> {
+        let receivers = self
+            .tells
+            .read()
             .get_receivers()
             .context(FrippyErrorKind::Tell)?;
 
@@ -111,12 +130,15 @@ impl<T: Database> Tell<T> {
             Ok(())
         }
     }
-    fn send_tells(&self, client: &IrcClient, receiver: &str) -> Result<(), FrippyError> {
+
+    fn send_tells(&self, client: &C, receiver: &str) -> Result<(), FrippyError> {
+        trace!("Checking {} for tells", receiver);
+
         if client.current_nickname() == receiver {
             return Ok(());
         }
 
-        let mut tells = try_lock!(self.tells);
+        let mut tells = self.tells.write();
 
         let tell_messages = match tells.get_tells(&receiver.to_lowercase()) {
             Ok(t) => t,
@@ -135,14 +157,13 @@ impl<T: Database> Tell<T> {
             let dur = now - Duration::new(tell.time.timestamp() as u64, 0);
             let human_dur = format_duration(dur);
 
+            let message = format!(
+                "Tell from {} {} ago: {}",
+                tell.sender, human_dur, tell.message
+            );
+
             client
-                .send_notice(
-                    receiver,
-                    &format!(
-                        "Tell from {} {} ago: {}",
-                        tell.sender, human_dur, tell.message
-                    ),
-                )
+                .send_notice(receiver, &message)
                 .context(FrippyErrorKind::Connection)?;
 
             debug!(
@@ -158,36 +179,30 @@ impl<T: Database> Tell<T> {
         Ok(())
     }
 
-    fn invalid_command(&self, client: &IrcClient) -> String {
-        format!(
-            "Incorrect Command. \
-             Send \"{} tell help\" for help.",
-            client.current_nickname()
-        )
+    fn invalid_command(&self) -> &str {
+        "Incorrect Command. \
+         Send \"tell help\" for help."
     }
 
-    fn help(&self, client: &IrcClient) -> String {
-        format!(
-            "usage: {} tell user message\r\n\
-             example: {0} tell Foobar Hello!",
-            client.current_nickname()
-        )
+    fn help(&self) -> &str {
+        "Used to send messages to offline users which they will receive when they come online.\r\n
+         usage: tell user message\r\n\
+         example: tell Foobar Hello!"
     }
 }
 
-impl<T: Database> Plugin for Tell<T> {
-    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
+impl<T: Database, C: FrippyClient> Plugin for Tell<T, C> {
+    type Client = C;
+    fn execute(&self, client: &Self::Client, message: &Message) -> ExecutionStatus {
         let res = match message.command {
             Command::JOIN(_, _, _) => self.send_tells(client, message.source_nickname().unwrap()),
             Command::NICK(ref nick) => self.send_tells(client, nick),
+            Command::PRIVMSG(_, _) => self.send_tells(client, message.source_nickname().unwrap()),
             Command::Response(resp, ref chan_info, _) => {
                 if resp == Response::RPL_NAMREPLY {
                     debug!("NAMREPLY info: {:?}", chan_info);
 
-                    self.on_namelist(
-                        client,
-                        &chan_info[chan_info.len() - 1],
-                    )
+                    self.on_namelist(client, &chan_info[chan_info.len() - 1])
                 } else {
                     Ok(())
                 }
@@ -201,43 +216,44 @@ impl<T: Database> Plugin for Tell<T> {
         }
     }
 
-    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), FrippyError> {
+    fn execute_threaded(&self, _: &Self::Client, _: &Message) -> Result<(), FrippyError> {
         panic!("Tell should not use threading")
     }
 
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
+    fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
-            return Ok(client
-                .send_notice(&command.source, &self.invalid_command(client))
-                .context(FrippyErrorKind::Connection)?);
+            client
+                .send_notice(&command.source, &self.invalid_command())
+                .context(FrippyErrorKind::Connection)?;
+            return Ok(());
         }
 
         let sender = command.source.to_owned();
 
-        Ok(match command.tokens[0].as_ref() {
+        match command.tokens[0].as_ref() {
             "help" => client
-                .send_notice(&command.source, &self.help(client))
-                .context(FrippyErrorKind::Connection)
-                .into(),
+                .send_notice(&command.source, &self.help())
+                .context(FrippyErrorKind::Connection),
             _ => match self.tell_command(client, command) {
                 Ok(msg) => client
                     .send_notice(&sender, &msg)
                     .context(FrippyErrorKind::Connection),
                 Err(e) => client
                     .send_notice(&sender, &e.to_string())
-                    .context(FrippyErrorKind::Connection)
-                    .into(),
+                    .context(FrippyErrorKind::Connection),
             },
-        }?)
+        }?;
+
+        Ok(())
     }
 
-    fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &Self::Client, _: PluginCommand) -> Result<String, String> {
         Err(String::from("This Plugin does not implement any commands."))
     }
 }
 
 use std::fmt;
-impl<T: Database> fmt::Debug for Tell<T> {
+impl<T: Database, C: FrippyClient> fmt::Debug for Tell<T, C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Tell {{ ... }}")
     }

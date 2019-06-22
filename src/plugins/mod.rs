@@ -1,8 +1,10 @@
 //! Collection of plugins included
+pub mod factoid;
 pub mod help;
-pub mod url;
-pub mod emoji;
-pub mod tell;
-pub mod currency;
-pub mod factoids;
 pub mod keepnick;
+pub mod quote;
+pub mod remind;
+pub mod sed;
+pub mod tell;
+pub mod unicode;
+pub mod url;

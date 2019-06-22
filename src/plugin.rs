@@ -1,8 +1,8 @@
 //! Definitions required for every `Plugin`
 use std::fmt;
 
-use irc::client::prelude::*;
 use error::FrippyError;
+use irc::client::prelude::*;
 
 /// Describes if a [`Plugin`](trait.Plugin.html) is done working on a
 /// [`Message`](../../irc/proto/message/struct.Message.html) or if another thread is required.
@@ -20,17 +20,19 @@ pub enum ExecutionStatus {
 /// `Plugin` has to be implemented for any struct that should be usable
 /// as a `Plugin` in frippy.
 pub trait Plugin: PluginName + Send + Sync + fmt::Debug {
+    type Client;
     /// Handles messages which are not commands or returns
     /// [`RequiresThread`](enum.ExecutionStatus.html#variant.RequiresThread)
     /// if [`execute_threaded()`](trait.Plugin.html#tymethod.execute_threaded) should be used instead.
-    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus;
+    fn execute(&self, client: &Self::Client, message: &Message) -> ExecutionStatus;
     /// Handles messages which are not commands in a new thread.
-    fn execute_threaded(&self, client: &IrcClient, message: &Message) -> Result<(), FrippyError>;
+    fn execute_threaded(&self, client: &Self::Client, message: &Message)
+        -> Result<(), FrippyError>;
     /// Handles any command directed at this plugin.
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError>;
+    fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError>;
     /// Similar to [`command()`](trait.Plugin.html#tymethod.command) but return a String instead of
     /// sending messages directly to IRC.
-    fn evaluate(&self, client: &IrcClient, command: PluginCommand) -> Result<String, String>;
+    fn evaluate(&self, client: &Self::Client, command: PluginCommand) -> Result<String, String>;
 }
 
 /// `PluginName` is required by [`Plugin`](trait.Plugin.html).
@@ -66,35 +68,24 @@ impl PluginCommand {
     /// Creates a `PluginCommand` from [`Message`](../../irc/proto/message/struct.Message.html)
     /// if it contains a [`PRIVMSG`](../../irc/proto/command/enum.Command.html#variant.PRIVMSG)
     /// that starts with the provided `nick`.
-    pub fn from(nick: &str, message: &Message) -> Option<PluginCommand> {
+    pub fn try_from(prefix: &str, message: &Message) -> Option<PluginCommand> {
         // Get the actual message out of PRIVMSG
         if let Command::PRIVMSG(_, ref content) = message.command {
-            // Split content by spaces and filter empty tokens
+            // Split content by spaces
             let mut tokens: Vec<String> = content.split(' ').map(ToOwned::to_owned).collect();
 
-            // Commands start with our name
-            if tokens[0].to_lowercase().starts_with(nick) {
-                // Remove the bot's name from the first token
-                tokens[0].drain(..nick.len());
-
-                // We assume that only ':' and ',' are used as suffixes on IRC
-                // If there are any other chars we assume that it is not ment for the bot
-                tokens[0] = tokens[0].chars().filter(|&c| !":,".contains(c)).collect();
-                if !tokens[0].is_empty() {
-                    return None;
-                }
-
-                // The first token contained the name of the bot
-                tokens.remove(0);
-
-                Some(PluginCommand {
-                    source: message.source_nickname().unwrap().to_string(),
-                    target: message.response_target().unwrap().to_string(),
-                    tokens: tokens,
-                })
-            } else {
-                None
+            // Commands start with a prefix
+            if !tokens[0].to_lowercase().starts_with(prefix) {
+                return None;
             }
+            // Remove the prefix from the first token
+            tokens[0].drain(..prefix.len());
+
+            Some(PluginCommand {
+                source: message.source_nickname().unwrap().to_string(),
+                target: message.response_target().unwrap().to_string(),
+                tokens,
+            })
         } else {
             None
         }

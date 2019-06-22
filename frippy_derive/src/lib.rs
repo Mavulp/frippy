@@ -34,7 +34,6 @@ fn expand_plugin(ast: &syn::DeriveInput) -> quote::Tokens {
 pub fn derive_error(data: TokenStream) -> TokenStream {
     let ast = syn::parse(data).unwrap();
     let tokens = expand_error(&ast);
-    // panic!("{}", tokens.to_string());
     tokens.into()
 }
 

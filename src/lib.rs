@@ -14,11 +14,10 @@
 //!
 //! let config = Config::load("config.toml").unwrap();
 //! let mut reactor = IrcReactor::new().unwrap();
-//! let mut bot = Bot::new();
+//! let mut bot = Bot::new(".");
 //!
 //! bot.add_plugin(plugins::help::Help::new());
-//! bot.add_plugin(plugins::emoji::Emoji::new());
-//! bot.add_plugin(plugins::currency::Currency::new());
+//! bot.add_plugin(plugins::unicode::Unicode::new());
 //!
 //! bot.connect(&mut reactor, &config).unwrap();
 //! reactor.run().unwrap();
@@ -46,49 +45,72 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 
+extern crate antidote;
 extern crate chrono;
+extern crate circular_queue;
 extern crate humantime;
 extern crate irc;
+extern crate rand;
+extern crate regex;
 extern crate reqwest;
+extern crate serde_json;
 extern crate time;
 
+pub mod error;
 pub mod plugin;
 pub mod plugins;
 pub mod utils;
-pub mod error;
-
-use std::collections::HashMap;
-use std::fmt;
-use std::thread::spawn;
-use std::sync::Arc;
-
-pub use irc::client::prelude::*;
-pub use irc::error::IrcError;
-use error::*;
-use failure::ResultExt;
 
 use plugin::*;
 
-/// The bot which contains the main logic.
-#[derive(Default)]
-pub struct Bot {
-    plugins: ThreadedPlugins,
+use error::*;
+use failure::ResultExt;
+
+pub use irc::client::data::Config;
+use irc::client::ext::ClientExt;
+use irc::client::reactor::IrcReactor;
+use irc::client::{Client, IrcClient};
+use irc::error::IrcError;
+use irc::proto::{command::Command, Message};
+
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+use std::thread;
+
+pub trait FrippyClient: Client + Send + Sync + Clone + fmt::Debug {
+    fn current_nickname(&self) -> &str;
 }
 
-impl Bot {
-    /// Creates a `Bot`.
+impl FrippyClient for IrcClient {
+    fn current_nickname(&self) -> &str {
+        self.current_nickname()
+    }
+}
+
+/// The bot which contains the main logic.
+pub struct Bot<'a> {
+    prefix: &'a str,
+    plugins: ThreadedPlugins<IrcClient>,
+}
+
+impl<'a> Bot<'a> {
+    /// Creates a `Bot` without any plugins.
     /// By itself the bot only responds to a few simple CTCP commands
     /// defined per config file.
     /// Any other functionality has to be provided by plugins
     /// which need to implement [`Plugin`](plugin/trait.Plugin.html).
+    /// To send commands to a plugin
+    /// the message has to start with the plugin's name prefixed by `cmd_prefix`.
     ///
     /// # Examples
     /// ```
     /// use frippy::Bot;
-    /// let mut bot = Bot::new();
+    /// let mut bot = Bot::new(".");
     /// ```
-    pub fn new() -> Bot {
+    pub fn new(cmd_prefix: &'a str) -> Self {
         Bot {
+            prefix: cmd_prefix,
             plugins: ThreadedPlugins::new(),
         }
     }
@@ -100,10 +122,13 @@ impl Bot {
     /// ```
     /// use frippy::{plugins, Bot};
     ///
-    /// let mut bot = frippy::Bot::new();
+    /// let mut bot = frippy::Bot::new(".");
     /// bot.add_plugin(plugins::help::Help::new());
     /// ```
-    pub fn add_plugin<T: Plugin + 'static>(&mut self, plugin: T) {
+    pub fn add_plugin<T>(&mut self, plugin: T)
+    where
+        T: Plugin<Client = IrcClient> + 'static,
+    {
         self.plugins.add(plugin);
     }
 
@@ -115,7 +140,7 @@ impl Bot {
     /// ```
     /// use frippy::{plugins, Bot};
     ///
-    /// let mut bot = frippy::Bot::new();
+    /// let mut bot = frippy::Bot::new(".");
     /// bot.add_plugin(plugins::help::Help::new());
     /// bot.remove_plugin("Help");
     /// ```
@@ -142,7 +167,7 @@ impl Bot {
     ///
     /// let config = Config::load("config.toml").unwrap();
     /// let mut reactor = IrcReactor::new().unwrap();
-    /// let mut bot = Bot::new();
+    /// let mut bot = Bot::new(".");
     ///
     /// bot.connect(&mut reactor, &config).unwrap();
     /// reactor.run().unwrap();
@@ -160,22 +185,27 @@ impl Bot {
         client.identify().context(ErrorKind::Connection)?;
         info!("Identified");
 
-        // TODO Verify if we actually need to clone plugins twice
+        // TODO Verify if we actually need to clone twice
         let plugins = self.plugins.clone();
+        let prefix = self.prefix.to_owned();
 
         reactor.register_client_with_handler(client, move |client, message| {
-            process_msg(client, plugins.clone(), message)
+            process_msg(client, plugins.clone(), &prefix.clone(), message)
         });
 
         Ok(())
     }
 }
 
-fn process_msg(
-    client: &IrcClient,
-    mut plugins: ThreadedPlugins,
+fn process_msg<C>(
+    client: &C,
+    mut plugins: ThreadedPlugins<C>,
+    prefix: &str,
     message: Message,
-) -> Result<(), IrcError> {
+) -> Result<(), IrcError>
+where
+    C: FrippyClient + 'static,
+{
     // Log any channels we join
     if let Command::JOIN(ref channel, _, _) = message.command {
         if message.source_nickname().unwrap() == client.current_nickname() {
@@ -184,7 +214,7 @@ fn process_msg(
     }
 
     // Check for possible command and save the result for later
-    let command = PluginCommand::from(&client.current_nickname().to_lowercase(), &message);
+    let command = PluginCommand::try_from(prefix, &message);
 
     plugins.execute_plugins(client, message);
 
@@ -198,19 +228,22 @@ fn process_msg(
     Ok(())
 }
 
-#[derive(Clone, Default, Debug)]
-struct ThreadedPlugins {
-    plugins: HashMap<String, Arc<Plugin>>,
+#[derive(Clone, Debug)]
+struct ThreadedPlugins<C: FrippyClient> {
+    plugins: HashMap<String, Arc<Plugin<Client = C>>>,
 }
 
-impl ThreadedPlugins {
-    pub fn new() -> ThreadedPlugins {
+impl<C: FrippyClient + 'static> ThreadedPlugins<C> {
+    pub fn new() -> Self {
         ThreadedPlugins {
             plugins: HashMap::new(),
         }
     }
 
-    pub fn add<T: Plugin + 'static>(&mut self, plugin: T) {
+    pub fn add<T>(&mut self, plugin: T)
+    where
+        T: Plugin<Client = C> + 'static,
+    {
         let name = plugin.name().to_lowercase();
         let safe_plugin = Arc::new(plugin);
 
@@ -221,14 +254,16 @@ impl ThreadedPlugins {
         self.plugins.remove(&name.to_lowercase()).map(|_| ())
     }
 
-    pub fn execute_plugins(&mut self, client: &IrcClient, message: Message) {
+    /// Runs the execute functions on all plugins.
+    /// Any errors that occur are printed right away.
+    pub fn execute_plugins(&mut self, client: &C, message: Message) {
         let message = Arc::new(message);
 
         for (name, plugin) in self.plugins.clone() {
             // Send the message to the plugin if the plugin needs it
             match plugin.execute(client, &message) {
                 ExecutionStatus::Done => (),
-                ExecutionStatus::Err(e) => log_error(e),
+                ExecutionStatus::Err(e) => log_error(&e),
                 ExecutionStatus::RequiresThread => {
                     debug!(
                         "Spawning thread to execute {} with {}",
@@ -242,11 +277,19 @@ impl ThreadedPlugins {
                     let client = client.clone();
 
                     // Execute the plugin in another thread
-                    spawn(move || {
-                        if let Err(e) = plugin.execute_threaded(&client, &message) {
-                            log_error(e);
-                        };
-                    });
+                    if let Err(e) = thread::Builder::new()
+                        .name(name)
+                        .spawn(move || {
+                            if let Err(e) = plugin.execute_threaded(&client, &message) {
+                                log_error(&e);
+                            } else {
+                                debug!("{} sent response from thread", plugin.name());
+                            }
+                        })
+                        .context(ErrorKind::ThreadSpawn)
+                    {
+                        log_error(&e.into());
+                    }
                 }
             }
         }
@@ -254,17 +297,10 @@ impl ThreadedPlugins {
 
     pub fn handle_command(
         &mut self,
-        client: &IrcClient,
+        client: &C,
         mut command: PluginCommand,
     ) -> Result<(), FrippyError> {
-        if !command.tokens.iter().any(|s| !s.is_empty()) {
-            let help = format!("Use \"{} help\" to get help", client.current_nickname());
-            client
-                .send_notice(&command.source, &help)
-                .context(ErrorKind::Connection)?;
-        }
-
-        // Check if the command is for this plugin
+        // Check if there is a plugin for this command
         if let Some(plugin) = self.plugins.get(&command.tokens[0].to_lowercase()) {
             // The first token contains the name of the plugin
             let name = command.tokens.remove(0);
@@ -274,31 +310,24 @@ impl ThreadedPlugins {
             // Clone for the move - the client uses an Arc internally
             let client = client.clone();
             let plugin = Arc::clone(plugin);
-            spawn(move || {
-                if let Err(e) = plugin.command(&client, command) {
-                    log_error(e);
-                };
-            });
-
-            Ok(())
-        } else {
-            let help = format!(
-                "\"{} {}\" is not a command, \
-                 try \"{0} help\" instead.",
-                client.current_nickname(),
-                command.tokens[0]
-            );
-
-            Ok(client
-                .send_notice(&command.source, &help)
-                .context(ErrorKind::Connection)?)
+            thread::Builder::new()
+                .name(name)
+                .spawn(move || {
+                    if let Err(e) = plugin.command(&client, command) {
+                        log_error(&e);
+                    };
+                })
+                .context(ErrorKind::ThreadSpawn)?;
         }
+
+        Ok(())
     }
 }
 
-impl fmt::Display for ThreadedPlugins {
+impl<C: FrippyClient> fmt::Display for ThreadedPlugins<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let plugin_names = self.plugins
+        let plugin_names = self
+            .plugins
             .iter()
             .map(|(_, p)| p.name().to_owned())
             .collect::<Vec<String>>();

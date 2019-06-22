@@ -1,14 +1,11 @@
-#[cfg(feature = "mysql")]
-extern crate dotenv;
-
+use std::collections::HashMap;
 #[cfg(feature = "mysql")]
 use std::sync::Arc;
-use std::collections::HashMap;
 
 #[cfg(feature = "mysql")]
-use diesel::prelude::*;
-#[cfg(feature = "mysql")]
 use diesel::mysql::MysqlConnection;
+#[cfg(feature = "mysql")]
+use diesel::prelude::*;
 #[cfg(feature = "mysql")]
 use r2d2::Pool;
 #[cfg(feature = "mysql")]
@@ -40,7 +37,7 @@ pub struct NewTellMessage<'a> {
     pub message: &'a str,
 }
 
-pub trait Database: Send {
+pub trait Database: Send + Sync {
     fn insert_tell(&mut self, tell: &NewTellMessage) -> Result<(), TellError>;
     fn get_tells(&self, receiver: &str) -> Result<Vec<TellMessage>, TellError>;
     fn get_receivers(&self) -> Result<Vec<String>, TellError>;
@@ -48,7 +45,7 @@ pub trait Database: Send {
 }
 
 // HashMap
-impl Database for HashMap<String, Vec<TellMessage>> {
+impl<S: ::std::hash::BuildHasher + Send + Sync> Database for HashMap<String, Vec<TellMessage>, S> {
     fn insert_tell(&mut self, tell: &NewTellMessage) -> Result<(), TellError> {
         let tell = TellMessage {
             id: 0,
@@ -138,8 +135,8 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     }
 
     fn delete_tells(&mut self, receiver: &str) -> Result<(), TellError> {
-        use diesel;
         use self::tells::columns;
+        use diesel;
 
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         diesel::delete(tells::table.filter(columns::receiver.eq(receiver)))

@@ -1,20 +1,27 @@
+use std::marker::PhantomData;
+
 use irc::client::prelude::*;
 
 use plugin::*;
+use FrippyClient;
 
-use error::FrippyError;
 use error::ErrorKind as FrippyErrorKind;
+use error::FrippyError;
 use failure::ResultExt;
 
 #[derive(PluginName, Default, Debug)]
-pub struct KeepNick;
+pub struct KeepNick<C> {
+    phantom: PhantomData<C>,
+}
 
-impl KeepNick {
-    pub fn new() -> KeepNick {
-        KeepNick {}
+impl<C: FrippyClient> KeepNick<C> {
+    pub fn new() -> Self {
+        KeepNick {
+            phantom: PhantomData,
+        }
     }
 
-    fn check_nick(&self, client: &IrcClient, leaver: &str) -> ExecutionStatus {
+    fn check_nick(&self, client: &C, leaver: &str) -> ExecutionStatus {
         let cfg_nick = match client.config().nickname {
             Some(ref nick) => nick.clone(),
             None => return ExecutionStatus::Done,
@@ -41,8 +48,9 @@ impl KeepNick {
     }
 }
 
-impl Plugin for KeepNick {
-    fn execute(&self, client: &IrcClient, message: &Message) -> ExecutionStatus {
+impl<C: FrippyClient> Plugin for KeepNick<C> {
+    type Client = C;
+    fn execute(&self, client: &Self::Client, message: &Message) -> ExecutionStatus {
         match message.command {
             Command::QUIT(ref nick) => {
                 self.check_nick(client, &nick.clone().unwrap_or_else(String::new))
@@ -51,20 +59,22 @@ impl Plugin for KeepNick {
         }
     }
 
-    fn execute_threaded(&self, _: &IrcClient, _: &Message) -> Result<(), FrippyError> {
+    fn execute_threaded(&self, _: &Self::Client, _: &Message) -> Result<(), FrippyError> {
         panic!("Tell should not use threading")
     }
 
-    fn command(&self, client: &IrcClient, command: PluginCommand) -> Result<(), FrippyError> {
-        Ok(client
+    fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
+        client
             .send_notice(
                 &command.source,
                 "This Plugin does not implement any commands.",
             )
-            .context(FrippyErrorKind::Connection)?)
+            .context(FrippyErrorKind::Connection)?;
+
+        Ok(())
     }
 
-    fn evaluate(&self, _: &IrcClient, _: PluginCommand) -> Result<String, String> {
+    fn evaluate(&self, _: &Self::Client, _: PluginCommand) -> Result<String, String> {
         Err(String::from("This Plugin does not implement any commands."))
     }
 }

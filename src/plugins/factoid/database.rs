@@ -1,20 +1,17 @@
-#[cfg(feature = "mysql")]
-extern crate dotenv;
-
+use std::collections::HashMap;
 #[cfg(feature = "mysql")]
 use std::sync::Arc;
-use std::collections::HashMap;
 
+#[cfg(feature = "mysql")]
+use diesel::mysql::MysqlConnection;
 #[cfg(feature = "mysql")]
 use diesel::prelude::*;
 #[cfg(feature = "mysql")]
-use diesel::mysql::MysqlConnection;
+use failure::ResultExt;
 #[cfg(feature = "mysql")]
 use r2d2::Pool;
 #[cfg(feature = "mysql")]
 use r2d2_diesel::ConnectionManager;
-#[cfg(feature = "mysql")]
-use failure::ResultExt;
 
 use chrono::NaiveDateTime;
 
@@ -40,21 +37,21 @@ pub struct NewFactoid<'a> {
     pub created: NaiveDateTime,
 }
 
-pub trait Database: Send {
-    fn insert_factoid(&mut self, factoid: &NewFactoid) -> Result<(), FactoidsError>;
-    fn get_factoid(&self, name: &str, idx: i32) -> Result<Factoid, FactoidsError>;
-    fn delete_factoid(&mut self, name: &str, idx: i32) -> Result<(), FactoidsError>;
-    fn count_factoids(&self, name: &str) -> Result<i32, FactoidsError>;
+pub trait Database: Send + Sync {
+    fn insert_factoid(&mut self, factoid: &NewFactoid) -> Result<(), FactoidError>;
+    fn get_factoid(&self, name: &str, idx: i32) -> Result<Factoid, FactoidError>;
+    fn delete_factoid(&mut self, name: &str, idx: i32) -> Result<(), FactoidError>;
+    fn count_factoids(&self, name: &str) -> Result<i32, FactoidError>;
 }
 
 // HashMap
-impl Database for HashMap<(String, i32), Factoid> {
-    fn insert_factoid(&mut self, factoid: &NewFactoid) -> Result<(), FactoidsError> {
+impl<S: ::std::hash::BuildHasher + Send + Sync> Database for HashMap<(String, i32), Factoid, S> {
+    fn insert_factoid(&mut self, factoid: &NewFactoid) -> Result<(), FactoidError> {
         let factoid = Factoid {
-            name: String::from(factoid.name),
+            name: factoid.name.to_owned(),
             idx: factoid.idx,
-            content: factoid.content.to_string(),
-            author: factoid.author.to_string(),
+            content: factoid.content.to_owned(),
+            author: factoid.author.to_owned(),
             created: factoid.created,
         };
 
@@ -65,20 +62,21 @@ impl Database for HashMap<(String, i32), Factoid> {
         }
     }
 
-    fn get_factoid(&self, name: &str, idx: i32) -> Result<Factoid, FactoidsError> {
-        Ok(self.get(&(String::from(name), idx))
+    fn get_factoid(&self, name: &str, idx: i32) -> Result<Factoid, FactoidError> {
+        Ok(self
+            .get(&(name.to_owned(), idx))
             .cloned()
             .ok_or(ErrorKind::NotFound)?)
     }
 
-    fn delete_factoid(&mut self, name: &str, idx: i32) -> Result<(), FactoidsError> {
-        match self.remove(&(String::from(name), idx)) {
+    fn delete_factoid(&mut self, name: &str, idx: i32) -> Result<(), FactoidError> {
+        match self.remove(&(name.to_owned(), idx)) {
             Some(_) => Ok(()),
             None => Err(ErrorKind::NotFound)?,
         }
     }
 
-    fn count_factoids(&self, name: &str) -> Result<i32, FactoidsError> {
+    fn count_factoids(&self, name: &str) -> Result<i32, FactoidError> {
         Ok(self.iter().filter(|&(&(ref n, _), _)| n == name).count() as i32)
     }
 }
@@ -103,7 +101,7 @@ use self::schema::factoids;
 
 #[cfg(feature = "mysql")]
 impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
-    fn insert_factoid(&mut self, factoid: &NewFactoid) -> Result<(), FactoidsError> {
+    fn insert_factoid(&mut self, factoid: &NewFactoid) -> Result<(), FactoidError> {
         use diesel;
 
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
@@ -115,7 +113,7 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
         Ok(())
     }
 
-    fn get_factoid(&self, name: &str, idx: i32) -> Result<Factoid, FactoidsError> {
+    fn get_factoid(&self, name: &str, idx: i32) -> Result<Factoid, FactoidError> {
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         Ok(factoids::table
             .find((name, idx))
@@ -123,9 +121,9 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
             .context(ErrorKind::MysqlError)?)
     }
 
-    fn delete_factoid(&mut self, name: &str, idx: i32) -> Result<(), FactoidsError> {
-        use diesel;
+    fn delete_factoid(&mut self, name: &str, idx: i32) -> Result<(), FactoidError> {
         use self::factoids::columns;
+        use diesel;
 
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         match diesel::delete(
@@ -145,7 +143,7 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
         }
     }
 
-    fn count_factoids(&self, name: &str) -> Result<i32, FactoidsError> {
+    fn count_factoids(&self, name: &str) -> Result<i32, FactoidError> {
         use diesel;
 
         let conn = &*self.get().context(ErrorKind::NoConnection)?;

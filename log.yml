@@ -1,0 +1,15 @@
+# Read https://docs.rs/log4rs/0.8.0/log4rs/file/index.html for more information on how to use this file
+refresh_rate: 5 minutes
+
+appenders:
+    stdout:
+        kind: console
+        encoder:
+            kind: pattern
+            pattern: "[{d:35}](({h({l})})) {t} - {m}{n}"
+
+loggers:
+    frippy:
+        level: info
+        appenders:
+            - stdout

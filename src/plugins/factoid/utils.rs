@@ -5,19 +5,19 @@ use serde_json::{self, Value as SerdeValue};
 
 use super::rlua::Error as LuaError;
 use super::rlua::Error::RuntimeError;
-use super::rlua::{Lua, Value as LuaValue};
+use super::rlua::{Context, Value as LuaValue};
 
 use utils::error::ErrorKind::Connection;
 use utils::Url;
 
 use failure::Fail;
 
-pub fn sleep(_: &Lua, dur: u64) -> Result<(), LuaError> {
+pub fn sleep(_: &Context, dur: u64) -> Result<(), LuaError> {
     thread::sleep(Duration::from_millis(dur));
     Ok(())
 }
 
-pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
+pub fn download(_: &Context, url: String) -> Result<String, LuaError> {
     let url = Url::from(url).max_kib(1024);
     match url.request() {
         Ok(v) => Ok(v),
@@ -36,7 +36,7 @@ pub fn download(_: &Lua, url: String) -> Result<String, LuaError> {
     }
 }
 
-fn convert_value(lua: &Lua, sval: SerdeValue, max_recurs: usize) -> Result<LuaValue, LuaError> {
+fn convert_value<'l>(lua: &Context<'l>, sval: SerdeValue, max_recurs: usize) -> Result<LuaValue<'l>, LuaError> {
     if max_recurs == 0 {
         return Err(RuntimeError(String::from(
             "Reached max recursion level - json is nested too deep",
@@ -74,7 +74,7 @@ fn convert_value(lua: &Lua, sval: SerdeValue, max_recurs: usize) -> Result<LuaVa
     Ok(lval)
 }
 
-pub fn json_decode(lua: &Lua, json: String) -> Result<LuaValue, LuaError> {
+pub fn json_decode<'l>(lua: &Context<'l>, json: String) -> Result<LuaValue<'l>, LuaError> {
     let ser_val: SerdeValue =
         serde_json::from_str(&json).map_err(|e| RuntimeError(e.to_string()))?;
 

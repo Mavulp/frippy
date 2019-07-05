@@ -210,20 +210,23 @@ impl<T: Database, C: Client> Factoid<T, C> {
             .collect::<Vec<String>>();
 
         let lua = unsafe { Lua::new_with_debug() };
-        let globals = lua.globals();
+        let output = lua.context(|ctx| {
+            let globals = ctx.globals();
 
-        globals.set("factoid", code)?;
-        globals.set("download", lua.create_function(download)?)?;
-        globals.set("json_decode", lua.create_function(json_decode)?)?;
-        globals.set("sleep", lua.create_function(sleep)?)?;
-        globals.set("args", args)?;
-        globals.set("input", command.tokens.join(" "))?;
-        globals.set("user", command.source.clone())?;
-        globals.set("channel", command.target.clone())?;
-        globals.set("output", lua.create_table()?)?;
+            globals.set("factoid", code)?;
+            globals.set("download", ctx.create_function(|ctx, url| download(&ctx, url))?)?;
+            globals.set("json_decode", ctx.create_function(|ctx, json| json_decode(&ctx, json))?)?;
+            globals.set("sleep", ctx.create_function(|ctx, ms| sleep(&ctx, ms))?)?;
+            globals.set("args", args)?;
+            globals.set("input", command.tokens.join(" "))?;
+            globals.set("user", command.source.clone())?;
+            globals.set("channel", command.target.clone())?;
+            globals.set("output", ctx.create_table()?)?;
 
-        lua.exec::<()>(LUA_SANDBOX, Some(name))?;
-        let output: Vec<String> = globals.get::<_, Vec<String>>("output")?;
+            ctx.load(LUA_SANDBOX).set_name(name)?.exec()?;
+
+            Ok(globals.get::<_, Vec<String>>("output")?)
+        })?;
 
         Ok(output.join("|"))
     }

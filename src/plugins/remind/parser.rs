@@ -231,7 +231,7 @@ impl CommandParser {
             }
             let dur = parse_duration(&words).context(ErrorKind::InvalidTime)?;
 
-            if dur <= min_dur {
+            if dur < min_dur {
                 return Err(ErrorKind::RepeatTimeShort.into());
             }
 

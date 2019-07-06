@@ -36,7 +36,11 @@ pub fn download(_: &Context, url: String) -> Result<String, LuaError> {
     }
 }
 
-fn convert_value<'l>(lua: &Context<'l>, sval: SerdeValue, max_recurs: usize) -> Result<LuaValue<'l>, LuaError> {
+fn convert_value<'l>(
+    lua: &Context<'l>,
+    sval: SerdeValue,
+    max_recurs: usize,
+) -> Result<LuaValue<'l>, LuaError> {
     if max_recurs == 0 {
         return Err(RuntimeError(String::from(
             "Reached max recursion level - json is nested too deep",

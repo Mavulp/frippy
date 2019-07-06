@@ -1,11 +1,16 @@
 extern crate rlua;
 
-use self::rlua::prelude::*;
-use antidote::RwLock;
-use irc::client::prelude::*;
 use std::fmt;
 use std::marker::PhantomData;
 use std::str::FromStr;
+use std::sync::Arc;
+use std::thread;
+use std::time::{Duration, Instant};
+
+use self::rlua::prelude::*;
+use self::rlua::HookTriggers;
+use antidote::RwLock;
+use irc::client::prelude::*;
 
 use chrono::NaiveDateTime;
 use time;
@@ -188,7 +193,15 @@ impl<T: Database, C: Client> Factoid<T, C> {
                     match self.run_lua(&name, &content, &command) {
                         Ok(v) => v,
                         Err(e) => match e {
-                            LuaError::CallbackError { cause, .. } => cause.to_string(),
+                            LuaError::CallbackError { cause, .. } => match *cause {
+                                LuaError::MemoryError(_) => {
+                                    String::from("memory error: Factoid used over 1 MiB of ram")
+                                }
+                                _ => cause.to_string(),
+                            },
+                            LuaError::MemoryError(_) => {
+                                String::from("memory error: Factoid used over 1 MiB of ram")
+                            }
                             _ => e.to_string(),
                         },
                     }
@@ -209,13 +222,43 @@ impl<T: Database, C: Client> Factoid<T, C> {
             .map(ToOwned::to_owned)
             .collect::<Vec<String>>();
 
-        let lua = unsafe { Lua::new_with_debug() };
+        let lua = Lua::new();
+        // TODO Is this actually 1 Mib?
+        lua.set_memory_limit(Some(1024 * 1024));
+
+        let start = Instant::now();
+        // Check if the factoid timed out
+        lua.set_hook(
+            HookTriggers {
+                every_line: true,
+                ..Default::default()
+            },
+            move |_, _| {
+                if Instant::now() - start > Duration::from_secs(30) {
+                    return Err(LuaError::ExternalError(Arc::new(
+                        format_err!("Factoid timed out after 30 seconds").compat(),
+                    )));
+                }
+
+                // Limit the cpu usage of factoids
+                thread::sleep(Duration::from_millis(1));
+
+                Ok(())
+            },
+        );
+
         let output = lua.context(|ctx| {
             let globals = ctx.globals();
 
             globals.set("factoid", code)?;
-            globals.set("download", ctx.create_function(|ctx, url| download(&ctx, url))?)?;
-            globals.set("json_decode", ctx.create_function(|ctx, json| json_decode(&ctx, json))?)?;
+            globals.set(
+                "download",
+                ctx.create_function(|ctx, url| download(&ctx, url))?,
+            )?;
+            globals.set(
+                "json_decode",
+                ctx.create_function(|ctx, json| json_decode(&ctx, json))?,
+            )?;
             globals.set("sleep", ctx.create_function(|ctx, ms| sleep(&ctx, ms))?)?;
             globals.set("args", args)?;
             globals.set("input", command.tokens.join(" "))?;
@@ -241,11 +284,13 @@ impl<T: Database, C: FrippyClient> Plugin for Factoid<T, C> {
     type Client = C;
     fn execute(&self, _: &Self::Client, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::PRIVMSG(_, ref content) => if content.starts_with('!') {
-                ExecutionStatus::RequiresThread
-            } else {
-                ExecutionStatus::Done
-            },
+            Command::PRIVMSG(_, ref content) => {
+                if content.starts_with('!') {
+                    ExecutionStatus::RequiresThread
+                } else {
+                    ExecutionStatus::Done
+                }
+            }
             _ => ExecutionStatus::Done,
         }
     }

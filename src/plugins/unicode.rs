@@ -67,19 +67,20 @@ impl<C: FrippyClient> Plugin for Unicode<C> {
     }
 
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
-        if command.tokens.is_empty() || command.tokens[0].is_empty() {
-            let msg = "No non-space character was found.";
+        let token = match command.tokens.iter().find(|t| !t.is_empty()) {
+            Some(t) => t,
+            None => {
+                let msg = "No non-space character was found.";
 
-            if let Err(e) = client.send_notice(command.source, msg) {
-                Err(e.context(FrippyErrorKind::Connection))?;
+                if let Err(e) = client.send_notice(command.source, msg) {
+                    Err(e.context(FrippyErrorKind::Connection))?;
+                }
+
+                return Ok(());
             }
+        };
 
-            return Ok(());
-        }
-
-        let content = &command.tokens[0];
-
-        if let Err(e) = client.send_privmsg(command.target, &self.format_response(&content)) {
+        if let Err(e) = client.send_privmsg(command.target, &self.format_response(&token)) {
             Err(e.context(FrippyErrorKind::Connection))?;
         }
 

@@ -97,10 +97,7 @@ impl<T: Database, C: Client> Quote<T, C> {
             thread_rng().gen_range(1, count + 1)
         } else {
             let idx_string = &command.tokens[1];
-            let idx = match i32::from_str(idx_string) {
-                Ok(i) => i,
-                Err(_) => Err(ErrorKind::InvalidIndex)?,
-            };
+            let idx = i32::from_str(idx_string).context(ErrorKind::InvalidIndex)?;
 
             if idx < 0 {
                 count + idx + 1
@@ -150,7 +147,7 @@ impl<T: Database, C: Client> Quote<T, C> {
                 Ok(match count {
                     0 => Err(ErrorKind::NotFound)?,
                     1 => format!("1 quote was saved in {}", channel),
-                    _ => format!("{} quotes were saved in {}", channel, count),
+                    _ => format!("{} quotes were saved in {}", count, channel),
                 })
             }
             1 => {
@@ -161,7 +158,7 @@ impl<T: Database, C: Client> Quote<T, C> {
                 Ok(match count {
                     0 => Err(ErrorKind::NotFound)?,
                     1 => format!("{} has 1 quote", quotee),
-                    _ => format!("{} has {} quotes", count, quotee),
+                    _ => format!("{} has {} quotes", quotee, count),
                 })
             }
             _ => {

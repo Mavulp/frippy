@@ -81,7 +81,9 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database
             .iter()
             .filter(|&(&(_, ref c, _), _)| c == channel)
             .nth(idx as usize - 1)
-            .ok_or(ErrorKind::NotFound)?.1.clone())
+            .ok_or(ErrorKind::NotFound)?
+            .1
+            .clone())
     }
 
     fn count_user_quotes(&self, quotee: &str, channel: &str) -> Result<i32, QuoteError> {
@@ -121,7 +123,6 @@ use self::schema::quotes;
 #[cfg(feature = "mysql")]
 impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     fn insert_quote(&mut self, quote: &NewQuote) -> Result<(), QuoteError> {
-
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         diesel::insert_into(quotes::table)
             .values(quote)
@@ -149,7 +150,6 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     }
 
     fn count_user_quotes(&self, quotee: &str, channel: &str) -> Result<i32, QuoteError> {
-
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         let count: Result<i64, _> = quotes::table
             .filter(quotes::columns::quotee.eq(quotee))
@@ -165,7 +165,6 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     }
 
     fn count_channel_quotes(&self, channel: &str) -> Result<i32, QuoteError> {
-
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         let count: Result<i64, _> = quotes::table
             .filter(quotes::columns::channel.eq(channel))

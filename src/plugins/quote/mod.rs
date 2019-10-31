@@ -109,28 +109,39 @@ impl<T: Database, C: Client> Quote<T, C> {
             }
         };
 
-        let quote = if let Some(quotee) = quotee {
-            self
+        let response = if let Some(quotee) = quotee {
+            let quote = self
                 .quotes
                 .read()
                 .get_user_quote(quotee, channel, idx)
-                .context(ErrorKind::NotFound)?
+                .context(ErrorKind::NotFound)?;
+
+            format!(
+                "\"{}\" - {}[{}/{}]",
+                quote.content, quote.quotee, quote.idx, count
+            )
         } else {
-            self
+            let quote = self
                 .quotes
                 .read()
                 .get_channel_quote(channel, idx)
-                .context(ErrorKind::NotFound)?
+                .context(ErrorKind::NotFound)?;
+
+            format!(
+                "\"{}\" - {}[{}]",
+                quote.content, quote.quotee, quote.idx
+            )
         };
 
-        Ok(format!(
-            "\"{}\" - {}[{}/{}]",
-            quote.content, quote.quotee, idx, count
-        ))
+        Ok(response)
     }
 
     fn info(&self, command: &PluginCommand) -> Result<String, QuoteError> {
-        let tokens = command.tokens.iter().filter(|t| !t.is_empty()).collect::<Vec<_>>();
+        let tokens = command
+            .tokens
+            .iter()
+            .filter(|t| !t.is_empty())
+            .collect::<Vec<_>>();
         match tokens.len() {
             0 => {
                 let channel = &command.target;
@@ -150,7 +161,7 @@ impl<T: Database, C: Client> Quote<T, C> {
                 Ok(match count {
                     0 => Err(ErrorKind::NotFound)?,
                     1 => format!("{} has 1 quote", quotee),
-                    _ => format!("{} has {} quotes", quotee, count),
+                    _ => format!("{} has {} quotes", count, quotee),
                 })
             }
             _ => {

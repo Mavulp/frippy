@@ -44,7 +44,7 @@ impl<T: Database, C: Client> Quote<T, C> {
         content: &str,
         author: &str,
     ) -> Result<&str, QuoteError> {
-        let count = self.quotes.read().count_quotes(quotee, channel)?;
+        let count = self.quotes.read().count_user_quotes(quotee, channel)?;
         let tm = time::now().to_timespec();
 
         let quote = database::NewQuote {
@@ -80,13 +80,13 @@ impl<T: Database, C: Client> Quote<T, C> {
     }
 
     fn get(&self, command: &PluginCommand) -> Result<String, QuoteError> {
-        if command.tokens.is_empty() {
-            Err(ErrorKind::InvalidCommand)?;
-        }
-
-        let quotee = &command.tokens[0];
+        let quotee = &command.tokens.get(0);
         let channel = &command.target;
-        let count = self.quotes.read().count_quotes(quotee, channel)?;
+        let count = if let Some(quotee) = quotee {
+            self.quotes.read().count_user_quotes(quotee, channel)?
+        } else {
+            self.quotes.read().count_channel_quotes(channel)?
+        };
 
         if count < 1 {
             Err(ErrorKind::NotFound)?;
@@ -109,11 +109,19 @@ impl<T: Database, C: Client> Quote<T, C> {
             }
         };
 
-        let quote = self
-            .quotes
-            .read()
-            .get_quote(quotee, channel, idx)
-            .context(ErrorKind::NotFound)?;
+        let quote = if let Some(quotee) = quotee {
+            self
+                .quotes
+                .read()
+                .get_user_quote(quotee, channel, idx)
+                .context(ErrorKind::NotFound)?
+        } else {
+            self
+                .quotes
+                .read()
+                .get_channel_quote(channel, idx)
+                .context(ErrorKind::NotFound)?
+        };
 
         Ok(format!(
             "\"{}\" - {}[{}/{}]",
@@ -122,12 +130,22 @@ impl<T: Database, C: Client> Quote<T, C> {
     }
 
     fn info(&self, command: &PluginCommand) -> Result<String, QuoteError> {
-        match command.tokens.len() {
-            0 => Err(ErrorKind::InvalidCommand)?,
+        let tokens = command.tokens.iter().filter(|t| !t.is_empty()).collect::<Vec<_>>();
+        match tokens.len() {
+            0 => {
+                let channel = &command.target;
+                let count = self.quotes.read().count_channel_quotes(channel)?;
+
+                Ok(match count {
+                    0 => Err(ErrorKind::NotFound)?,
+                    1 => format!("1 quote was saved in {}", channel),
+                    _ => format!("{} quotes were saved in {}", channel, count),
+                })
+            }
             1 => {
                 let quotee = &command.tokens[0];
                 let channel = &command.target;
-                let count = self.quotes.read().count_quotes(quotee, channel)?;
+                let count = self.quotes.read().count_user_quotes(quotee, channel)?;
 
                 Ok(match count {
                     0 => Err(ErrorKind::NotFound)?,
@@ -141,7 +159,7 @@ impl<T: Database, C: Client> Quote<T, C> {
                 let idx = i32::from_str(&command.tokens[1]).context(ErrorKind::InvalidIndex)?;
 
                 let idx = if idx < 0 {
-                    self.quotes.read().count_quotes(quotee, channel)? + idx + 1
+                    self.quotes.read().count_user_quotes(quotee, channel)? + idx + 1
                 } else {
                     idx
                 };
@@ -149,7 +167,7 @@ impl<T: Database, C: Client> Quote<T, C> {
                 let quote = self
                     .quotes
                     .read()
-                    .get_quote(quotee, channel, idx)
+                    .get_user_quote(quotee, channel, idx)
                     .context(ErrorKind::NotFound)?;
 
                 Ok(format!(

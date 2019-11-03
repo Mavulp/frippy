@@ -38,20 +38,26 @@ impl<C: FrippyClient> Unicode<C> {
 
         let mut buf = [0; 4];
 
-        let byte_string = character
+        let bytes = character
             .encode_utf8(&mut buf)
             .as_bytes()
             .iter()
             .map(|b| format!("{:#x}", b))
-            .collect::<Vec<String>>()
-            .join(",");
+            .collect::<Vec<String>>();
 
         let name = self.get_name(character);
 
-        format!(
-            "{} is '{}' | UTF-8: {2:#x} ({2}), Bytes: [{3}]",
-            character, name, character as u32, byte_string
-        )
+        if bytes.len() > 1 {
+            format!(
+                "{} is '{}' | UTF-8: {2:#x} ({2}), Bytes: [{3}]",
+                character, name, character as u32, bytes.join(",")
+            )
+        } else {
+            format!(
+                "{} is '{}' | UTF-8: {2:#x} ({2})",
+                character, name, character as u32
+            )
+        }
     }
 }
 

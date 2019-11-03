@@ -42,7 +42,7 @@ impl<C: FrippyClient> Unicode<C> {
             .encode_utf8(&mut buf)
             .as_bytes()
             .iter()
-            .map(|b| format!("{:#b}", b))
+            .map(|b| format!("{:#x}", b))
             .collect::<Vec<String>>()
             .join(",");
 

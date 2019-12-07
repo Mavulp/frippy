@@ -1,6 +1,9 @@
 //! Errors for `frippy` crate using `failure`.
 
 use failure::Fail;
+use log::error;
+
+use frippy_derive::Error;
 
 pub fn log_error(e: &FrippyError) {
     let text = e

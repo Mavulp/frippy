@@ -1,24 +1,3 @@
-extern crate frippy;
-extern crate glob;
-extern crate irc;
-extern crate log4rs;
-extern crate time;
-
-#[cfg(feature = "mysql")]
-extern crate diesel;
-#[cfg(feature = "mysql")]
-#[macro_use]
-extern crate diesel_migrations;
-#[cfg(feature = "mysql")]
-extern crate r2d2;
-#[cfg(feature = "mysql")]
-extern crate r2d2_diesel;
-
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate log;
-
 use std::collections::HashMap;
 #[cfg(feature = "mysql")]
 use std::sync::Arc;
@@ -36,8 +15,9 @@ use frippy::plugins::tell::Tell;
 use frippy::plugins::unicode::Unicode;
 use frippy::plugins::url::UrlTitles;
 
-use failure::Error;
+use failure::{bail, Error};
 use frippy::Config;
+use log::{error, info};
 
 #[cfg(feature = "mysql")]
 embed_migrations!();

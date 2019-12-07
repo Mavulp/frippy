@@ -1,5 +1,3 @@
-extern crate unicode_names;
-
 use std::marker::PhantomData;
 
 use irc::client::prelude::*;
@@ -10,6 +8,8 @@ use crate::FrippyClient;
 use crate::error::ErrorKind as FrippyErrorKind;
 use crate::error::FrippyError;
 use failure::Fail;
+
+use frippy_derive::PluginName;
 
 #[derive(PluginName, Default, Debug)]
 pub struct Unicode<C> {

@@ -1,5 +1,3 @@
-extern crate rlua;
-
 use std::fmt;
 use std::marker::PhantomData;
 use std::str::FromStr;
@@ -7,8 +5,8 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use self::rlua::prelude::*;
-use self::rlua::HookTriggers;
+use rlua::prelude::*;
+use rlua::HookTriggers;
 use antidote::RwLock;
 use irc::client::prelude::*;
 
@@ -27,7 +25,9 @@ use crate::utils::Url;
 use self::error::*;
 use crate::error::ErrorKind as FrippyErrorKind;
 use crate::error::FrippyError;
-use failure::ResultExt;
+use failure::{format_err, ResultExt};
+
+use frippy_derive::PluginName;
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
@@ -388,6 +388,9 @@ impl<T: Database, C: FrippyClient> fmt::Debug for Factoid<T, C> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "FactoidError"]
     pub enum ErrorKind {

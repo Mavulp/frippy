@@ -28,34 +28,6 @@
 //! Frippy uses the [log](https://docs.rs/log) crate so you can log events
 //! which might be of interest.
 
-#[cfg(feature = "mysql")]
-#[macro_use]
-extern crate diesel;
-#[cfg(feature = "mysql")]
-extern crate r2d2;
-#[cfg(feature = "mysql")]
-extern crate r2d2_diesel;
-
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate frippy_derive;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-
-extern crate antidote;
-extern crate chrono;
-extern crate circular_queue;
-extern crate humantime;
-extern crate irc;
-extern crate rand;
-extern crate regex;
-extern crate reqwest;
-extern crate serde_json;
-extern crate time;
-
 pub mod error;
 pub mod plugin;
 pub mod plugins;
@@ -65,6 +37,7 @@ use crate::plugin::*;
 
 use crate::error::*;
 use failure::ResultExt;
+use log::{debug, error, info};
 
 pub use irc::client::data::Config;
 use irc::client::ext::ClientExt;

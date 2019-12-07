@@ -1,10 +1,9 @@
-extern crate htmlescape;
-
 use std::marker::PhantomData;
 use std::time::Duration;
 
 use irc::client::prelude::*;
 
+use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::plugin::*;
@@ -16,6 +15,9 @@ use crate::error::ErrorKind as FrippyErrorKind;
 use crate::error::FrippyError;
 use failure::Fail;
 use failure::ResultExt;
+use log::debug;
+
+use frippy_derive::PluginName;
 
 lazy_static! {
     static ref URL_RE: Regex = Regex::new(r"(^|\s)(https?://\S+)").unwrap();
@@ -206,6 +208,9 @@ impl<C: FrippyClient> Plugin for UrlTitles<C> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     /// A URL plugin error
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "UrlError"]

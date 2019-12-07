@@ -19,6 +19,8 @@ use failure::Fail;
 use failure::ResultExt;
 use log::{debug, trace};
 
+use frippy_derive::PluginName;
+
 pub mod database;
 use self::database::Database;
 
@@ -261,6 +263,9 @@ impl<T: Database, C: FrippyClient> fmt::Debug for Tell<T, C> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "TellError"]
     pub enum ErrorKind {

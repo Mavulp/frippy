@@ -9,6 +9,8 @@ use crate::error::ErrorKind as FrippyErrorKind;
 use crate::error::FrippyError;
 use failure::ResultExt;
 
+use frippy_derive::PluginName;
+
 #[derive(PluginName, Default, Debug)]
 pub struct Help<C> {
     phantom: PhantomData<C>,

@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 
 use antidote::RwLock;
 use circular_queue::CircularQueue;
+use lazy_static::lazy_static;
 use regex::{Captures, Regex, RegexBuilder};
 
 use irc::client::prelude::*;
@@ -15,6 +16,9 @@ use crate::error::ErrorKind as FrippyErrorKind;
 use crate::error::FrippyError;
 use failure::Fail;
 use failure::ResultExt;
+use log::debug;
+
+use frippy_derive::PluginName;
 
 lazy_static! {
     static ref RE: Regex =
@@ -175,6 +179,9 @@ impl<C: FrippyClient> Plugin for Sed<C> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "SedError"]
     pub enum ErrorKind {

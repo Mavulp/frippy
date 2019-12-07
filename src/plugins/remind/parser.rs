@@ -5,6 +5,7 @@ use time;
 
 use super::error::*;
 use failure::ResultExt;
+use log::debug;
 
 #[derive(Default, Debug)]
 pub struct CommandParser {

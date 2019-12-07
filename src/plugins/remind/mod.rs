@@ -20,6 +20,9 @@ use self::error::*;
 use crate::error::ErrorKind as FrippyErrorKind;
 use crate::error::FrippyError;
 use failure::ResultExt;
+use log::{debug, error};
+
+use frippy_derive::PluginName;
 
 fn get_time() -> NaiveDateTime {
     let tm = time::now().to_timespec();
@@ -275,6 +278,9 @@ impl<T: Database, C: FrippyClient> fmt::Debug for Remind<T, C> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "RemindError"]
     pub enum ErrorKind {

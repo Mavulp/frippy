@@ -98,6 +98,9 @@ impl<'a> Url<'a> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "DownloadError"]
     pub enum ErrorKind {

@@ -26,7 +26,6 @@ use std::sync::Arc;
 use glob::glob;
 use irc::client::reactor::IrcReactor;
 
-use frippy::plugins::unicode::Unicode;
 use frippy::plugins::factoid::Factoid;
 use frippy::plugins::help::Help;
 use frippy::plugins::keepnick::KeepNick;
@@ -34,6 +33,7 @@ use frippy::plugins::quote::Quote;
 use frippy::plugins::remind::Remind;
 use frippy::plugins::sed::Sed;
 use frippy::plugins::tell::Tell;
+use frippy::plugins::unicode::Unicode;
 use frippy::plugins::url::UrlTitles;
 
 use failure::Error;

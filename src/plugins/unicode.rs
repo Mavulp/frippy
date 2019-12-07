@@ -50,7 +50,10 @@ impl<C: FrippyClient> Unicode<C> {
         if bytes.len() > 1 {
             format!(
                 "{} is '{}' | UTF-8: {2:#x} ({2}), Bytes: [{3}]",
-                character, name, character as u32, bytes.join(",")
+                character,
+                name,
+                character as u32,
+                bytes.join(",")
             )
         } else {
             format!(

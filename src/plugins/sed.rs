@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use antidote::RwLock;
 use circular_queue::CircularQueue;
-use regex::{Regex, RegexBuilder, Captures};
+use regex::{Captures, Regex, RegexBuilder};
 
 use irc::client::prelude::*;
 

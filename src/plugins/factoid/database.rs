@@ -130,7 +130,8 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
             factoids::table
                 .filter(columns::name.eq(name))
                 .filter(columns::idx.eq(idx)),
-        ).execute(conn)
+        )
+        .execute(conn)
         {
             Ok(v) => {
                 if v > 0 {

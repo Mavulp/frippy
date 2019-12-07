@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::io::{self, Read};
 use std::time::Duration;
 
-use reqwest::header::{CONNECTION, HeaderValue};
+use reqwest::header::{HeaderValue, CONNECTION};
 use reqwest::{Client, ClientBuilder};
 
 use self::error::{DownloadError, ErrorKind};

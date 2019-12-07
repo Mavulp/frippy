@@ -124,10 +124,7 @@ impl<T: Database, C: Client> Quote<T, C> {
                 .get_channel_quote(channel, idx)
                 .context(ErrorKind::NotFound)?;
 
-            format!(
-                "\"{}\" - {}[{}]",
-                quote.content, quote.quotee, quote.idx
-            )
+            format!("\"{}\" - {}[{}]", quote.content, quote.quotee, quote.idx)
         };
 
         Ok(response)

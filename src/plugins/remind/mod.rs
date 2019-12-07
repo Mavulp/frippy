@@ -140,7 +140,8 @@ impl<T: Database + 'static, C: FrippyClient> Remind<T, C> {
 
         debug!("New event: {:?}", event);
 
-        Ok(self.events
+        Ok(self
+            .events
             .write()
             .insert_event(&event)
             .map(|id| format!("Created reminder with id {} at {} UTC", id, time))?)
@@ -168,7 +169,8 @@ impl<T: Database + 'static, C: FrippyClient> Remind<T, C> {
             .remove(0)
             .parse::<i64>()
             .context(ErrorKind::Parsing)?;
-        let event = self.events
+        let event = self
+            .events
             .read()
             .get_event(id)
             .context(ErrorKind::NotFound)?;

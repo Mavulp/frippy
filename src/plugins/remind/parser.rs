@@ -204,7 +204,8 @@ impl CommandParser {
                     now.tm_year + 1900,
                     now.tm_mon as u32 + 1,
                     now.tm_mday as u32,
-                ).ok_or(ErrorKind::InvalidDate)?;
+                )
+                .ok_or(ErrorKind::InvalidDate)?;
 
                 let time_today = today.and_time(time);
 
@@ -219,7 +220,8 @@ impl CommandParser {
                 }
             }
         } else {
-            Ok(date.expect("At this point date has to be set")
+            Ok(date
+                .expect("At this point date has to be set")
                 .and_hms(0, 0, 0))
         }
     }

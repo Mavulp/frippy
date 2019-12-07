@@ -102,9 +102,8 @@ use self::schema::factoids;
 #[cfg(feature = "mysql")]
 impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     fn insert_factoid(&mut self, factoid: &NewFactoid) -> Result<(), FactoidError> {
-        use diesel;
-
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
+
         diesel::insert_into(factoids::table)
             .values(factoid)
             .execute(conn)
@@ -123,7 +122,6 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
 
     fn delete_factoid(&mut self, name: &str, idx: i32) -> Result<(), FactoidError> {
         use self::factoids::columns;
-        use diesel;
 
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         match diesel::delete(
@@ -145,9 +143,8 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     }
 
     fn count_factoids(&self, name: &str) -> Result<i32, FactoidError> {
-        use diesel;
-
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
+
         let count: Result<i64, _> = factoids::table
             .filter(factoids::columns::name.eq(name))
             .count()

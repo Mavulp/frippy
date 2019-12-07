@@ -104,8 +104,6 @@ use self::schema::tells;
 #[cfg(feature = "mysql")]
 impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     fn insert_tell(&mut self, tell: &NewTellMessage) -> Result<(), TellError> {
-        use diesel;
-
         let conn = &*self.get().expect("Failed to get connection");
         diesel::insert_into(tells::table)
             .values(tell)
@@ -142,7 +140,6 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
 
     fn delete_tells(&mut self, receiver: &str) -> Result<(), TellError> {
         use self::tells::columns;
-        use diesel;
 
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         diesel::delete(tells::table.filter(columns::receiver.eq(receiver)))

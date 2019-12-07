@@ -8,14 +8,14 @@ use irc::client::prelude::*;
 use rand::{thread_rng, Rng};
 use time;
 
-use plugin::*;
-use FrippyClient;
+use crate::plugin::*;
+use crate::FrippyClient;
 pub mod database;
 use self::database::Database;
 
 use self::error::*;
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
 use failure::ResultExt;
 
 enum QuoteResponse {

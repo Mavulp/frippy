@@ -61,9 +61,9 @@ pub mod plugin;
 pub mod plugins;
 pub mod utils;
 
-use plugin::*;
+use crate::plugin::*;
 
-use error::*;
+use crate::error::*;
 use failure::ResultExt;
 
 pub use irc::client::data::Config;
@@ -230,7 +230,7 @@ where
 
 #[derive(Clone, Debug)]
 struct ThreadedPlugins<C: FrippyClient> {
-    plugins: HashMap<String, Arc<Plugin<Client = C>>>,
+    plugins: HashMap<String, Arc<dyn Plugin<Client = C>>>,
 }
 
 impl<C: FrippyClient + 'static> ThreadedPlugins<C> {

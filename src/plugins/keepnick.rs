@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 
 use irc::client::prelude::*;
 
-use plugin::*;
-use FrippyClient;
+use crate::plugin::*;
+use crate::FrippyClient;
 
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
 use failure::ResultExt;
 
 #[derive(PluginName, Default, Debug)]

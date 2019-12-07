@@ -7,12 +7,12 @@ use regex::{Regex, RegexBuilder, Captures};
 
 use irc::client::prelude::*;
 
-use plugin::*;
-use FrippyClient;
+use crate::plugin::*;
+use crate::FrippyClient;
 
 use self::error::*;
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
 use failure::Fail;
 use failure::ResultExt;
 

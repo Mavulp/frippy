@@ -8,6 +8,7 @@ license = "MIT"
 keywords = ["irc", "bot"]
 categories = ["network-programming"]
 description = "An IRC Bot"
+edition = "2018"
 
 [[bin]]
 name = "frippy"

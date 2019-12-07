@@ -1,7 +1,7 @@
 //! Definitions required for every `Plugin`
 use std::fmt;
 
-use error::FrippyError;
+use crate::error::FrippyError;
 use irc::client::prelude::*;
 
 /// Describes if a [`Plugin`](trait.Plugin.html) is done working on a

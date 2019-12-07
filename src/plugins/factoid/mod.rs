@@ -15,18 +15,18 @@ use irc::client::prelude::*;
 use chrono::NaiveDateTime;
 use time;
 
-use plugin::*;
-use FrippyClient;
+use crate::plugin::*;
+use crate::FrippyClient;
 pub mod database;
 use self::database::Database;
 
 mod utils;
 use self::utils::*;
-use utils::Url;
+use crate::utils::Url;
 
 use self::error::*;
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
 use failure::ResultExt;
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");

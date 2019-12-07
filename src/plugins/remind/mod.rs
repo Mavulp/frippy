@@ -8,8 +8,8 @@ use irc::client::prelude::*;
 use chrono::{self, NaiveDateTime};
 use time;
 
-use plugin::*;
-use FrippyClient;
+use crate::plugin::*;
+use crate::FrippyClient;
 
 pub mod database;
 mod parser;
@@ -17,8 +17,8 @@ use self::database::Database;
 use self::parser::CommandParser;
 
 use self::error::*;
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
 use failure::ResultExt;
 
 fn get_time() -> NaiveDateTime {

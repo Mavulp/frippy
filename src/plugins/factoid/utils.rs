@@ -7,8 +7,8 @@ use super::rlua::Error as LuaError;
 use super::rlua::Error::RuntimeError;
 use super::rlua::{Context, Value as LuaValue};
 
-use utils::error::ErrorKind::Connection;
-use utils::Url;
+use crate::utils::error::ErrorKind::Connection;
+use crate::utils::Url;
 
 use failure::Fail;
 

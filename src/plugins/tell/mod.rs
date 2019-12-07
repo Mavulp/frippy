@@ -9,12 +9,12 @@ use humantime::format_duration;
 use std::time::Duration;
 use time;
 
-use plugin::*;
-use FrippyClient;
+use crate::plugin::*;
+use crate::FrippyClient;
 
 use self::error::*;
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
 use failure::Fail;
 use failure::ResultExt;
 use log::{debug, trace};

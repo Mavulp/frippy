@@ -43,11 +43,14 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
 
         let mut online = Vec::new();
 
-        let receivers = command.tokens[0].split(',').filter(|&s| !s.is_empty());
+        let receivers = command.tokens[0]
+            .split(',')
+            .filter(|&s| !s.is_empty())
+            .collect::<Vec<_>>();
         let sender = command.source;
 
         let mut no_receiver = true;
-        for receiver in receivers {
+        for receiver in &receivers {
             if receiver.eq_ignore_ascii_case(client.current_nickname())
                 || receiver.eq_ignore_ascii_case(&sender)
             {
@@ -96,15 +99,13 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
             no_receiver = false;
         }
 
-        Ok(if no_receiver && online.is_empty() {
+        let resp = if no_receiver {
             String::from("Invalid receiver.")
         } else {
-            match online.len() {
-                0 => format!("Got it!"),
-                1 => format!("{} is currently online.", online[0]),
-                _ => format!("{} are currently online.", online.join(", ")),
-            }
-        })
+            format!("Sending tell to {}.", receivers.join(", "))
+        };
+
+        Ok(resp)
     }
 
     fn on_namelist(&self, client: &C, channel: &str) -> Result<(), FrippyError> {

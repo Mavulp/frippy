@@ -56,7 +56,8 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database for HashMap<String, Vec
         };
 
         let receiver = tell.receiver.clone();
-        let tell_messages = self.entry(receiver)
+        let tell_messages = self
+            .entry(receiver)
             .or_insert_with(|| Vec::with_capacity(3));
         (*tell_messages).push(tell);
 
@@ -68,7 +69,8 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database for HashMap<String, Vec
     }
 
     fn get_receivers(&self) -> Result<Vec<String>, TellError> {
-        Ok(self.iter()
+        Ok(self
+            .iter()
             .map(|(receiver, _)| receiver.to_owned())
             .collect::<Vec<_>>())
     }
@@ -117,21 +119,25 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
         use self::tells::columns;
 
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
-        Ok(tells::table
+        let result = tells::table
             .filter(columns::receiver.eq(receiver))
             .order(columns::time.asc())
             .load::<TellMessage>(conn)
-            .context(ErrorKind::MysqlError)?)
+            .context(ErrorKind::MysqlError)?;
+
+        Ok(result)
     }
 
     fn get_receivers(&self) -> Result<Vec<String>, TellError> {
         use self::tells::columns;
 
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
-        Ok(tells::table
+        let result = tells::table
             .select(columns::receiver)
             .load::<String>(conn)
-            .context(ErrorKind::MysqlError)?)
+            .context(ErrorKind::MysqlError)?;
+
+        Ok(result)
     }
 
     fn delete_tells(&mut self, receiver: &str) -> Result<(), TellError> {

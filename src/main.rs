@@ -20,6 +20,10 @@ use frippy::Config;
 use log::{error, info};
 
 #[cfg(feature = "mysql")]
+#[macro_use]
+extern crate diesel_migrations;
+
+#[cfg(feature = "mysql")]
 embed_migrations!();
 
 fn main() {
@@ -92,7 +96,6 @@ fn run() -> Result<(), Error> {
         {
             if let Some(url) = mysql_url {
                 use diesel::MysqlConnection;
-                use r2d2;
                 use r2d2_diesel::ConnectionManager;
 
                 let manager = ConnectionManager::<MysqlConnection>::new(url.clone());

@@ -28,6 +28,10 @@
 //! Frippy uses the [log](https://docs.rs/log) crate so you can log events
 //! which might be of interest.
 
+#[cfg(feature = "mysql")]
+#[macro_use]
+extern crate diesel;
+
 pub mod error;
 pub mod plugin;
 pub mod plugins;

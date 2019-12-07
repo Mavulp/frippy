@@ -1798,7 +1798,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "unicode_names"
 version = "0.1.7"
-source = "git+https://github.com/Jokler/unicode_names?branch=update-to-latest-unicode#2cfe53a9be5334ab1f5b78095cdb0802007da00a"
+source = "git+https://github.com/Jokler/unicode_names?branch=update-to-latest-unicode#155b46c7dd23a60b32369f9799d375d10335e654"
 
 [[package]]
 name = "unsafe-any"

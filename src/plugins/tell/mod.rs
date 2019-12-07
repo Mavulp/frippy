@@ -7,6 +7,7 @@ use irc::client::prelude::*;
 use chrono::NaiveDateTime;
 use humantime::format_duration;
 use std::time::Duration;
+use itertools::Itertools;
 use time;
 
 use crate::plugin::*;
@@ -48,6 +49,7 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
         let receivers = command.tokens[0]
             .split(',')
             .filter(|&s| !s.is_empty())
+            .unique()
             .collect::<Vec<_>>();
         let sender = command.source;
 

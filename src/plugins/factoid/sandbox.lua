@@ -58,7 +58,7 @@ local sandbox_env = {
 }
 
 sandbox_env.os = {
-  clock = os.clock,
+  date = os.date,
   time = os.time,
   difftime = os.difftime
 }

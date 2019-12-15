@@ -1,5 +1,6 @@
 use std::fmt;
 use std::marker::PhantomData;
+use std::ops::Deref;
 use std::str::FromStr;
 
 use antidote::RwLock;
@@ -132,6 +133,41 @@ impl<T: Database, C: Client> Quote<T, C> {
         Ok(response)
     }
 
+    fn search(&self, command: &mut PluginCommand) -> Result<String, QuoteError> {
+        if command.tokens.len() < 2 {
+            Err(ErrorKind::InvalidCommand)?;
+        }
+
+        let user = match command.tokens.remove(0).deref() {
+            "user" => Some(command.tokens.remove(0)),
+            "channel" => None,
+            _ => return Err(ErrorKind::InvalidCommand.into()),
+        };
+        let channel = &command.target;
+
+        if command.tokens.is_empty() {
+            Err(ErrorKind::InvalidCommand)?;
+        }
+
+        let query = command.tokens.join(" ");
+        let quote = if let Some(user) = user {
+            self.quotes
+                .read()
+                .search_user_quote(&query, &user, channel, 0)
+                .context(ErrorKind::NotFound)?
+        } else {
+            self.quotes
+                .read()
+                .search_channel_quote(&query, channel, 0)
+                .context(ErrorKind::NotFound)?
+        };
+
+        Ok(format!(
+            "\"{}\" - {}[{}]",
+            quote.content, quote.quotee, quote.idx
+        ))
+    }
+
     fn info(&self, command: &PluginCommand) -> Result<String, QuoteError> {
         let tokens = command
             .tokens
@@ -187,7 +223,7 @@ impl<T: Database, C: Client> Quote<T, C> {
 
     fn help(&self) -> &str {
         "usage: quotes <subcommand>\r\n\
-         subcommands: add, get, info, help"
+         subcommands: add, get, search info, help"
     }
 }
 
@@ -223,6 +259,7 @@ impl<T: Database, C: FrippyClient> Plugin for Quote<T, C> {
         let result = match sub_command.as_ref() {
             "add" => self.add(&mut command).map(|s| Private(s.to_owned())),
             "get" => self.get(&command).map(Public),
+            "search" => self.search(&mut command).map(Public),
             "info" => self.info(&command).map(Public),
             "help" => Ok(Private(self.help().to_owned())),
             _ => Err(ErrorKind::InvalidCommand.into()),

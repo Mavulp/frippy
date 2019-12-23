@@ -96,12 +96,17 @@ impl<T: Database, C: Client> Quote<T, C> {
     }
 
     fn get(&self, command: &PluginCommand) -> Result<String, QuoteError> {
-        let quotee = &command.tokens.get(0);
+        let tokens = command
+            .tokens
+            .iter()
+            .filter(|t| !t.is_empty())
+            .collect::<Vec<_>>();
+        let quotee = &tokens.get(0);
         let channel = &command.target;
 
         match quotee {
             Some(quotee) => {
-                let idx = match command.tokens.get(1) {
+                let idx = match tokens.get(1) {
                     Some(s) => Some(i32::from_str(s).context(ErrorKind::InvalidIndex)?),
                     None => None,
                 };

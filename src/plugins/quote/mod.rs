@@ -10,10 +10,11 @@ use irc::client::prelude::*;
 use rand::{thread_rng, Rng};
 use time;
 
-use crate::plugin::*;
-use crate::FrippyClient;
 pub mod database;
 use self::database::Database;
+
+use crate::plugin::*;
+use crate::FrippyClient;
 
 use self::error::*;
 use crate::error::ErrorKind as FrippyErrorKind;
@@ -371,7 +372,7 @@ impl<T: Database, C: FrippyClient> Plugin for Quote<T, C> {
         let target = command.target.clone();
         let source = command.source.clone();
 
-        let sub_command = command.tokens.remove(0);
+        let sub_command = command.tokens.remove(0).to_lowercase();
         let result = match sub_command.as_ref() {
             "add" => self.add(&mut command).map(|s| Private(s.to_owned())),
             "get" => self.get(&command).map(Public),

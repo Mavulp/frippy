@@ -1,28 +1,33 @@
-extern crate rlua;
-
-use self::rlua::prelude::*;
-use antidote::RwLock;
-use irc::client::prelude::*;
 use std::fmt;
 use std::marker::PhantomData;
 use std::str::FromStr;
+use std::sync::Arc;
+use std::thread;
+use std::time::{Duration, Instant};
+
+use rlua::prelude::*;
+use rlua::HookTriggers;
+use antidote::RwLock;
+use irc::client::prelude::*;
 
 use chrono::NaiveDateTime;
 use time;
 
-use plugin::*;
-use FrippyClient;
+use crate::plugin::*;
+use crate::FrippyClient;
 pub mod database;
 use self::database::Database;
 
 mod utils;
 use self::utils::*;
-use utils::Url;
+use crate::utils::Url;
 
 use self::error::*;
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
-use failure::ResultExt;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
+use failure::{format_err, ResultExt};
+
+use frippy_derive::PluginName;
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
 
@@ -189,7 +194,15 @@ impl<T: Database, C: Client> Factoid<T, C> {
                     match self.run_lua(&name, &content, &command) {
                         Ok(v) => v,
                         Err(e) => match e {
-                            LuaError::CallbackError { cause, .. } => cause.to_string(),
+                            LuaError::CallbackError { cause, .. } => match *cause {
+                                LuaError::MemoryError(_) => {
+                                    String::from("memory error: Factoid used over 1 MiB of ram")
+                                }
+                                _ => cause.to_string(),
+                            },
+                            LuaError::MemoryError(_) => {
+                                String::from("memory error: Factoid used over 1 MiB of ram")
+                            }
                             _ => e.to_string(),
                         },
                     }
@@ -211,21 +224,54 @@ impl<T: Database, C: Client> Factoid<T, C> {
             .map(ToOwned::to_owned)
             .collect::<Vec<String>>();
 
-        let lua = unsafe { Lua::new_with_debug() };
-        let globals = lua.globals();
+        let lua = Lua::new();
+        // TODO Is this actually 1 Mib?
+        lua.set_memory_limit(Some(1024 * 1024));
 
-        globals.set("factoid", code)?;
-        globals.set("download", lua.create_function(download)?)?;
-        globals.set("json_decode", lua.create_function(json_decode)?)?;
-        globals.set("sleep", lua.create_function(sleep)?)?;
-        globals.set("args", args)?;
-        globals.set("input", command.tokens.join(" "))?;
-        globals.set("user", command.source.clone())?;
-        globals.set("channel", command.target.clone())?;
-        globals.set("output", lua.create_table()?)?;
+        let start = Instant::now();
+        // Check if the factoid timed out
+        lua.set_hook(
+            HookTriggers {
+                every_line: true,
+                ..Default::default()
+            },
+            move |_, _| {
+                if Instant::now() - start > Duration::from_secs(30) {
+                    return Err(LuaError::ExternalError(Arc::new(
+                        format_err!("Factoid timed out after 30 seconds").compat(),
+                    )));
+                }
 
-        lua.exec::<()>(LUA_SANDBOX, Some(name))?;
-        let output: Vec<String> = globals.get::<_, Vec<String>>("output")?;
+                // Limit the cpu usage of factoids
+                thread::sleep(Duration::from_millis(1));
+
+                Ok(())
+            },
+        );
+
+        let output = lua.context(|ctx| {
+            let globals = ctx.globals();
+
+            globals.set("factoid", code)?;
+            globals.set(
+                "download",
+                ctx.create_function(|ctx, url| download(&ctx, url))?,
+            )?;
+            globals.set(
+                "json_decode",
+                ctx.create_function(|ctx, json| json_decode(&ctx, json))?,
+            )?;
+            globals.set("sleep", ctx.create_function(|ctx, ms| sleep(&ctx, ms))?)?;
+            globals.set("args", args)?;
+            globals.set("input", command.tokens.join(" "))?;
+            globals.set("user", command.source.clone())?;
+            globals.set("channel", command.target.clone())?;
+            globals.set("output", ctx.create_table()?)?;
+
+            ctx.load(LUA_SANDBOX).set_name(name)?.exec()?;
+
+            Ok(globals.get::<_, Vec<String>>("output")?)
+        })?;
 
         Ok(output.join("|"))
     }
@@ -240,11 +286,13 @@ impl<T: Database, C: FrippyClient> Plugin for Factoid<T, C> {
     type Client = C;
     fn execute(&self, _: &Self::Client, message: &Message) -> ExecutionStatus {
         match message.command {
-            Command::PRIVMSG(_, ref content) => if content.starts_with('!') {
-                ExecutionStatus::RequiresThread
-            } else {
-                ExecutionStatus::Done
-            },
+            Command::PRIVMSG(_, ref content) => {
+                if content.starts_with('!') {
+                    ExecutionStatus::RequiresThread
+                } else {
+                    ExecutionStatus::Done
+                }
+            }
             _ => ExecutionStatus::Done,
         }
     }
@@ -342,6 +390,9 @@ impl<T: Database, C: FrippyClient> fmt::Debug for Factoid<T, C> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "FactoidError"]
     pub enum ErrorKind {

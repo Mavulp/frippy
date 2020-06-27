@@ -1,31 +1,45 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::marker::PhantomData;
+use std::ops::Deref;
 use std::str::FromStr;
 
-use antidote::RwLock;
+use antidote::{Mutex, RwLock};
 use chrono::NaiveDateTime;
 use irc::client::prelude::*;
 use rand::{thread_rng, Rng};
 use time;
 
-use plugin::*;
-use FrippyClient;
 pub mod database;
 use self::database::Database;
 
+use crate::plugin::*;
+use crate::FrippyClient;
+
 use self::error::*;
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
 use failure::ResultExt;
+
+use frippy_derive::PluginName;
 
 enum QuoteResponse {
     Public(String),
     Private(String),
 }
 
+#[derive(Clone)]
+enum PreviousCommand {
+    Get,
+    GetUser(String, Option<i32>),
+    Search(String, i32),
+    SearchUser(String, String, i32),
+}
+
 #[derive(PluginName)]
 pub struct Quote<T: Database, C: Client> {
     quotes: RwLock<T>,
+    previous_map: Mutex<HashMap<String, PreviousCommand>>,
     phantom: PhantomData<C>,
 }
 
@@ -33,6 +47,7 @@ impl<T: Database, C: Client> Quote<T, C> {
     pub fn new(db: T) -> Self {
         Quote {
             quotes: RwLock::new(db),
+            previous_map: Mutex::new(HashMap::new()),
             phantom: PhantomData,
         }
     }
@@ -44,7 +59,7 @@ impl<T: Database, C: Client> Quote<T, C> {
         content: &str,
         author: &str,
     ) -> Result<&str, QuoteError> {
-        let count = self.quotes.read().count_quotes(quotee, channel)?;
+        let count = self.quotes.read().count_user_quotes(quotee, channel)?;
         let tm = time::now().to_timespec();
 
         let quote = database::NewQuote {
@@ -56,11 +71,13 @@ impl<T: Database, C: Client> Quote<T, C> {
             created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
         };
 
-        Ok(self
+        let response = self
             .quotes
             .write()
             .insert_quote(&quote)
-            .map(|()| "Successfully added!")?)
+            .map(|()| "Successfully added!")?;
+
+        Ok(response)
     }
 
     fn add(&self, command: &mut PluginCommand) -> Result<&str, QuoteError> {
@@ -80,54 +97,215 @@ impl<T: Database, C: Client> Quote<T, C> {
     }
 
     fn get(&self, command: &PluginCommand) -> Result<String, QuoteError> {
-        if command.tokens.is_empty() {
-            Err(ErrorKind::InvalidCommand)?;
-        }
-
-        let quotee = &command.tokens[0];
+        let tokens = command
+            .tokens
+            .iter()
+            .filter(|t| !t.is_empty())
+            .collect::<Vec<_>>();
+        let quotee = &tokens.get(0);
         let channel = &command.target;
-        let count = self.quotes.read().count_quotes(quotee, channel)?;
 
+        match quotee {
+            Some(quotee) => {
+                let idx = match tokens.get(1) {
+                    Some(s) => Some(i32::from_str(s).context(ErrorKind::InvalidIndex)?),
+                    None => None,
+                };
+
+                self.get_user(quotee, channel, idx)
+            }
+            None => self.get_random(channel),
+        }
+    }
+
+    fn get_user(
+        &self,
+        quotee: &str,
+        channel: &str,
+        idx: Option<i32>,
+    ) -> Result<String, QuoteError> {
+        let count = self.quotes.read().count_user_quotes(quotee, channel)?;
         if count < 1 {
             Err(ErrorKind::NotFound)?;
         }
 
-        let len = command.tokens.len();
-        let idx = if len < 2 || command.tokens[1].is_empty() {
-            thread_rng().gen_range(1, count + 1)
-        } else {
-            let idx_string = &command.tokens[1];
-            let idx = match i32::from_str(idx_string) {
-                Ok(i) => i,
-                Err(_) => Err(ErrorKind::InvalidIndex)?,
-            };
+        let mut idx = if let Some(idx) = idx {
+            self.previous_map.lock().insert(
+                channel.to_owned(),
+                PreviousCommand::GetUser(quotee.to_owned(), Some(idx)),
+            );
 
-            if idx < 0 {
-                count + idx + 1
-            } else {
-                idx
-            }
+            idx
+        } else {
+            self.previous_map.lock().insert(
+                channel.to_owned(),
+                PreviousCommand::GetUser(quotee.to_owned(), None),
+            );
+
+            thread_rng().gen_range(1, count + 1)
         };
+
+        if idx < 0 {
+            idx += count + 1;
+        }
 
         let quote = self
             .quotes
             .read()
-            .get_quote(quotee, channel, idx)
+            .get_user_quote(quotee, channel, idx)
+            .context(ErrorKind::NotFound)?;
+
+        let response = format!(
+            "\"{}\" - {}[{}/{}]",
+            quote.content, quote.quotee, quote.idx, count
+        );
+
+        Ok(response)
+    }
+
+    fn get_random(&self, channel: &str) -> Result<String, QuoteError> {
+        let count = self.quotes.read().count_channel_quotes(channel)?;
+
+        if count < 1 {
+            Err(ErrorKind::NotFound)?;
+        }
+        self.previous_map
+            .lock()
+            .insert(channel.to_owned(), PreviousCommand::Get);
+
+        let idx = thread_rng().gen_range(1, count + 1);
+
+        let quote = self
+            .quotes
+            .read()
+            .get_channel_quote(channel, idx)
             .context(ErrorKind::NotFound)?;
 
         Ok(format!(
-            "\"{}\" - {}[{}/{}]",
-            quote.content, quote.quotee, idx, count
+            "\"{}\" - {}[{}]",
+            quote.content, quote.quotee, quote.idx
         ))
     }
 
+    fn search(&self, command: &mut PluginCommand) -> Result<String, QuoteError> {
+        if command.tokens.len() < 2 {
+            Err(ErrorKind::InvalidCommand)?;
+        }
+
+        let channel = &command.target;
+        match command.tokens.remove(0).deref() {
+            "user" => {
+                let user = command.tokens.remove(0);
+
+                if command.tokens.is_empty() {
+                    Err(ErrorKind::InvalidCommand)?;
+                }
+
+                let query = command.tokens.join(" ");
+                self.search_user(&user, channel, &query, 0)
+            }
+            "channel" => {
+                if command.tokens.is_empty() {
+                    Err(ErrorKind::InvalidCommand)?;
+                }
+
+                let query = command.tokens.join(" ");
+                self.search_channel(channel, &query, 0)
+            }
+            _ => Err(ErrorKind::InvalidCommand.into()),
+        }
+    }
+
+    fn next(&self, channel: String) -> Result<String, QuoteError> {
+        let previous = self
+            .previous_map
+            .lock()
+            .get(&channel)
+            .cloned()
+            .ok_or(ErrorKind::NoPrevious)?;
+
+        match previous {
+            PreviousCommand::Get => self.get_random(&channel),
+            PreviousCommand::GetUser(user, idx) => {
+                let idx = idx.map(|idx| if idx < 0 { idx - 1 } else { idx + 1 });
+
+                self.get_user(&user, &channel, idx)
+            }
+            PreviousCommand::Search(query, offset) => {
+                self.search_channel(&channel, &query, offset + 1)
+            }
+            PreviousCommand::SearchUser(user, query, offset) => {
+                self.search_user(&user, &channel, &query, offset + 1)
+            }
+        }
+    }
+
+    fn search_user(
+        &self,
+        user: &str,
+        channel: &str,
+        query: &str,
+        offset: i32,
+    ) -> Result<String, QuoteError> {
+        self.previous_map.lock().insert(
+            channel.to_owned(),
+            PreviousCommand::SearchUser(user.to_owned(), query.to_owned(), offset),
+        );
+
+        let quote = self
+            .quotes
+            .read()
+            .search_user_quote(&query, &user, channel, offset)
+            .context(ErrorKind::NotFound)?;
+
+        let response = format!("\"{}\" - {}[{}]", quote.content, quote.quotee, quote.idx);
+
+        Ok(response)
+    }
+
+    fn search_channel(
+        &self,
+        channel: &str,
+        query: &str,
+        offset: i32,
+    ) -> Result<String, QuoteError> {
+        self.previous_map.lock().insert(
+            channel.to_owned(),
+            PreviousCommand::Search(query.to_owned(), offset),
+        );
+
+        let quote = self
+            .quotes
+            .read()
+            .search_channel_quote(&query, channel, offset)
+            .context(ErrorKind::NotFound)?;
+
+        let response = format!("\"{}\" - {}[{}]", quote.content, quote.quotee, quote.idx);
+
+        Ok(response)
+    }
+
     fn info(&self, command: &PluginCommand) -> Result<String, QuoteError> {
-        match command.tokens.len() {
-            0 => Err(ErrorKind::InvalidCommand)?,
+        let tokens = command
+            .tokens
+            .iter()
+            .filter(|t| !t.is_empty())
+            .collect::<Vec<_>>();
+        match tokens.len() {
+            0 => {
+                let channel = &command.target;
+                let count = self.quotes.read().count_channel_quotes(channel)?;
+
+                Ok(match count {
+                    0 => Err(ErrorKind::NotFound)?,
+                    1 => format!("1 quote was saved in {}", channel),
+                    _ => format!("{} quotes were saved in {}", count, channel),
+                })
+            }
             1 => {
                 let quotee = &command.tokens[0];
                 let channel = &command.target;
-                let count = self.quotes.read().count_quotes(quotee, channel)?;
+                let count = self.quotes.read().count_user_quotes(quotee, channel)?;
 
                 Ok(match count {
                     0 => Err(ErrorKind::NotFound)?,
@@ -141,7 +319,7 @@ impl<T: Database, C: Client> Quote<T, C> {
                 let idx = i32::from_str(&command.tokens[1]).context(ErrorKind::InvalidIndex)?;
 
                 let idx = if idx < 0 {
-                    self.quotes.read().count_quotes(quotee, channel)? + idx + 1
+                    self.quotes.read().count_user_quotes(quotee, channel)? + idx + 1
                 } else {
                     idx
                 };
@@ -149,7 +327,7 @@ impl<T: Database, C: Client> Quote<T, C> {
                 let quote = self
                     .quotes
                     .read()
-                    .get_quote(quotee, channel, idx)
+                    .get_user_quote(quotee, channel, idx)
                     .context(ErrorKind::NotFound)?;
 
                 Ok(format!(
@@ -162,7 +340,7 @@ impl<T: Database, C: Client> Quote<T, C> {
 
     fn help(&self) -> &str {
         "usage: quotes <subcommand>\r\n\
-         subcommands: add, get, info, help"
+         subcommands: add, get, search, next, info, help"
     }
 }
 
@@ -194,10 +372,12 @@ impl<T: Database, C: FrippyClient> Plugin for Quote<T, C> {
         let target = command.target.clone();
         let source = command.source.clone();
 
-        let sub_command = command.tokens.remove(0);
+        let sub_command = command.tokens.remove(0).to_lowercase();
         let result = match sub_command.as_ref() {
             "add" => self.add(&mut command).map(|s| Private(s.to_owned())),
             "get" => self.get(&command).map(Public),
+            "search" => self.search(&mut command).map(Public),
+            "next" => self.next(command.target).map(Public),
             "info" => self.info(&command).map(Public),
             "help" => Ok(Private(self.help().to_owned())),
             _ => Err(ErrorKind::InvalidCommand.into()),
@@ -238,6 +418,9 @@ impl<T: Database, C: FrippyClient> fmt::Debug for Quote<T, C> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "QuoteError"]
     pub enum ErrorKind {
@@ -248,6 +431,10 @@ pub mod error {
         /// Invalid index error
         #[fail(display = "Invalid index")]
         InvalidIndex,
+
+        /// No previous command error
+        #[fail(display = "No previous command was found for this channel")]
+        NoPrevious,
 
         /// Private message error
         #[fail(display = "You can only add quotes in channel messages")]

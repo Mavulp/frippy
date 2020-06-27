@@ -1,27 +1,3 @@
-#![cfg_attr(feature = "clippy", feature(plugin))]
-#![cfg_attr(feature = "clippy", plugin(clippy))]
-
-extern crate frippy;
-extern crate glob;
-extern crate irc;
-extern crate log4rs;
-extern crate time;
-
-#[cfg(feature = "mysql")]
-extern crate diesel;
-#[cfg(feature = "mysql")]
-#[macro_use]
-extern crate diesel_migrations;
-#[cfg(feature = "mysql")]
-extern crate r2d2;
-#[cfg(feature = "mysql")]
-extern crate r2d2_diesel;
-
-#[macro_use]
-extern crate failure;
-#[macro_use]
-extern crate log;
-
 use std::collections::HashMap;
 #[cfg(feature = "mysql")]
 use std::sync::Arc;
@@ -29,7 +5,6 @@ use std::sync::Arc;
 use glob::glob;
 use irc::client::reactor::IrcReactor;
 
-use frippy::plugins::unicode::Unicode;
 use frippy::plugins::factoid::Factoid;
 use frippy::plugins::help::Help;
 use frippy::plugins::keepnick::KeepNick;
@@ -37,10 +12,16 @@ use frippy::plugins::quote::Quote;
 use frippy::plugins::remind::Remind;
 use frippy::plugins::sed::Sed;
 use frippy::plugins::tell::Tell;
+use frippy::plugins::unicode::Unicode;
 use frippy::plugins::url::UrlTitles;
 
-use failure::Error;
+use failure::{bail, Error};
 use frippy::Config;
+use log::{error, info};
+
+#[cfg(feature = "mysql")]
+#[macro_use]
+extern crate diesel_migrations;
 
 #[cfg(feature = "mysql")]
 embed_migrations!();
@@ -115,7 +96,6 @@ fn run() -> Result<(), Error> {
         {
             if let Some(url) = mysql_url {
                 use diesel::MysqlConnection;
-                use r2d2;
                 use r2d2_diesel::ConnectionManager;
 
                 let manager = ConnectionManager::<MysqlConnection>::new(url.clone());

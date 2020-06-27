@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::io::{self, Read};
 use std::time::Duration;
 
-use reqwest::header::{CONNECTION, HeaderValue};
+use reqwest::header::{HeaderValue, ACCEPT_LANGUAGE, CONNECTION};
 use reqwest::{Client, ClientBuilder};
 
 use self::error::{DownloadError, ErrorKind};
@@ -61,6 +61,7 @@ impl<'a> Url<'a> {
         let mut response = client
             .get(self.url.as_ref())
             .header(CONNECTION, HeaderValue::from_static("close"))
+            .header(ACCEPT_LANGUAGE, HeaderValue::from_static("en-US,en;q=0.5"))
             .send()
             .context(ErrorKind::Connection)?;
 
@@ -98,6 +99,9 @@ impl<'a> Url<'a> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "DownloadError"]
     pub enum ErrorKind {

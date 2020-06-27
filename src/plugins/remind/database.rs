@@ -163,7 +163,7 @@ use self::schema::events;
 #[cfg(feature = "mysql")]
 impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     fn insert_event(&mut self, event: &NewEvent) -> Result<i64, RemindError> {
-        use diesel::{self, dsl::sql, types::Bigint};
+        use diesel::{dsl::sql, types::Bigint};
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
 
         diesel::insert_into(events::table)
@@ -180,7 +180,6 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
 
     fn update_event_time(&mut self, id: i64, time: &NaiveDateTime) -> Result<(), RemindError> {
         use self::events::columns;
-        use diesel;
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
 
         match diesel::update(events::table.filter(columns::id.eq(id)))
@@ -224,7 +223,6 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
 
     fn delete_event(&mut self, id: i64) -> Result<(), RemindError> {
         use self::events::columns;
-        use diesel;
 
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         match diesel::delete(events::table.filter(columns::id.eq(id))).execute(conn) {

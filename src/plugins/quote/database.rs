@@ -41,8 +41,24 @@ pub struct NewQuote<'a> {
 
 pub trait Database: Send + Sync {
     fn insert_quote(&mut self, quote: &NewQuote) -> Result<(), QuoteError>;
-    fn get_quote(&self, quotee: &str, channel: &str, idx: i32) -> Result<Quote, QuoteError>;
-    fn count_quotes(&self, quotee: &str, channel: &str) -> Result<i32, QuoteError>;
+    fn get_user_quote(&self, quotee: &str, channel: &str, idx: i32) -> Result<Quote, QuoteError>;
+    fn get_channel_quote(&self, channel: &str, idx: i32) -> Result<Quote, QuoteError>;
+    fn count_user_quotes(&self, quotee: &str, channel: &str) -> Result<i32, QuoteError>;
+    fn count_channel_quotes(&self, channel: &str) -> Result<i32, QuoteError>;
+    fn search_user_quote(
+        &self,
+        query: &str,
+        quotee: &str,
+        channel: &str,
+        offset: i32,
+    ) -> Result<Quote, QuoteError>;
+
+    fn search_channel_quote(
+        &self,
+        query: &str,
+        channel: &str,
+        offset: i32,
+    ) -> Result<Quote, QuoteError>;
 }
 
 // HashMap
@@ -67,18 +83,80 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database
         }
     }
 
-    fn get_quote(&self, quotee: &str, channel: &str, idx: i32) -> Result<Quote, QuoteError> {
-        Ok(self
+    fn get_user_quote(&self, quotee: &str, channel: &str, idx: i32) -> Result<Quote, QuoteError> {
+        let quote = self
             .get(&(quotee.to_owned(), channel.to_owned(), idx))
             .cloned()
-            .ok_or(ErrorKind::NotFound)?)
+            .ok_or(ErrorKind::NotFound)?;
+
+        Ok(quote)
     }
 
-    fn count_quotes(&self, quotee: &str, channel: &str) -> Result<i32, QuoteError> {
-        Ok(self
+    fn get_channel_quote(&self, channel: &str, idx: i32) -> Result<Quote, QuoteError> {
+        let quote = self
             .iter()
-            .filter(|&(&(ref n, ref c, _), _)| n == quotee && c == channel)
-            .count() as i32)
+            .filter(|&(&(_, ref c, _), _)| c == channel)
+            .nth(idx as usize - 1)
+            .ok_or(ErrorKind::NotFound)?
+            .1
+            .clone();
+
+        Ok(quote)
+    }
+
+    fn count_user_quotes(&self, quotee: &str, channel: &str) -> Result<i32, QuoteError> {
+        let count = self
+            .iter()
+            .filter(|&(&(ref q, ref c, _), _)| q == quotee && c == channel)
+            .count();
+
+        Ok(count as i32)
+    }
+
+    fn count_channel_quotes(&self, channel: &str) -> Result<i32, QuoteError> {
+        let count = self
+            .iter()
+            .filter(|&(&(_, ref c, _), _)| c == channel)
+            .count();
+
+        Ok(count as i32)
+    }
+
+    fn search_user_quote(
+        &self,
+        query: &str,
+        quotee: &str,
+        channel: &str,
+        offset: i32,
+    ) -> Result<Quote, QuoteError> {
+        let quote = self
+            .iter()
+            .filter(|&(&(ref q, ref c, _), _)| q == quotee && c == channel)
+            .filter(|&(&(_, _, _), q)| q.content.to_lowercase().contains(&query.to_lowercase()))
+            .nth(offset as usize)
+            .ok_or(ErrorKind::NotFound)?
+            .1
+            .clone();
+
+        Ok(quote)
+    }
+
+    fn search_channel_quote(
+        &self,
+        query: &str,
+        channel: &str,
+        offset: i32,
+    ) -> Result<Quote, QuoteError> {
+        let quote = self
+            .iter()
+            .filter(|&(&(_, ref c, _), _)| c == channel)
+            .filter(|&(&(_, _, _), q)| q.content.contains(query))
+            .nth(offset as usize)
+            .ok_or(ErrorKind::NotFound)?
+            .1
+            .clone();
+
+        Ok(quote)
     }
 }
 
@@ -104,8 +182,6 @@ use self::schema::quotes;
 #[cfg(feature = "mysql")]
 impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
     fn insert_quote(&mut self, quote: &NewQuote) -> Result<(), QuoteError> {
-        use diesel;
-
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         diesel::insert_into(quotes::table)
             .values(quote)
@@ -115,17 +191,28 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
         Ok(())
     }
 
-    fn get_quote(&self, quotee: &str, channel: &str, idx: i32) -> Result<Quote, QuoteError> {
+    fn get_user_quote(&self, quotee: &str, channel: &str, idx: i32) -> Result<Quote, QuoteError> {
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
-        Ok(quotes::table
+        let quote = quotes::table
             .find((quotee, channel, idx))
             .first(conn)
-            .context(ErrorKind::MysqlError)?)
+            .context(ErrorKind::MysqlError)?;
+
+        Ok(quote)
     }
 
-    fn count_quotes(&self, quotee: &str, channel: &str) -> Result<i32, QuoteError> {
-        use diesel;
+    fn get_channel_quote(&self, channel: &str, idx: i32) -> Result<Quote, QuoteError> {
+        let conn = &*self.get().context(ErrorKind::NoConnection)?;
+        let quote = quotes::table
+            .filter(quotes::columns::channel.eq(channel))
+            .offset(idx as i64 - 1)
+            .first(conn)
+            .context(ErrorKind::MysqlError)?;
 
+        Ok(quote)
+    }
+
+    fn count_user_quotes(&self, quotee: &str, channel: &str) -> Result<i32, QuoteError> {
         let conn = &*self.get().context(ErrorKind::NoConnection)?;
         let count: Result<i64, _> = quotes::table
             .filter(quotes::columns::quotee.eq(quotee))
@@ -138,5 +225,55 @@ impl Database for Arc<Pool<ConnectionManager<MysqlConnection>>> {
             Err(diesel::NotFound) => Ok(0),
             Err(e) => Err(e).context(ErrorKind::MysqlError)?,
         }
+    }
+
+    fn count_channel_quotes(&self, channel: &str) -> Result<i32, QuoteError> {
+        let conn = &*self.get().context(ErrorKind::NoConnection)?;
+        let count: Result<i64, _> = quotes::table
+            .filter(quotes::columns::channel.eq(channel))
+            .count()
+            .get_result(conn);
+
+        match count {
+            Ok(c) => Ok(c as i32),
+            Err(diesel::NotFound) => Ok(0),
+            Err(e) => Err(e).context(ErrorKind::MysqlError)?,
+        }
+    }
+
+    fn search_user_quote(
+        &self,
+        query: &str,
+        quotee: &str,
+        channel: &str,
+        offset: i32,
+    ) -> Result<Quote, QuoteError> {
+        let conn = &*self.get().context(ErrorKind::NoConnection)?;
+        let quote = quotes::table
+            .filter(quotes::columns::channel.eq(channel))
+            .filter(quotes::columns::quotee.eq(quotee))
+            .filter(quotes::columns::content.like(&format!("%{}%", query)))
+            .offset(offset as i64)
+            .first(conn)
+            .context(ErrorKind::MysqlError)?;
+
+        Ok(quote)
+    }
+
+    fn search_channel_quote(
+        &self,
+        query: &str,
+        channel: &str,
+        offset: i32,
+    ) -> Result<Quote, QuoteError> {
+        let conn = &*self.get().context(ErrorKind::NoConnection)?;
+        let quote = quotes::table
+            .filter(quotes::columns::channel.eq(channel))
+            .filter(quotes::columns::content.like(&format!("%{}%", query)))
+            .offset(offset as i64)
+            .first(conn)
+            .context(ErrorKind::MysqlError)?;
+
+        Ok(quote)
     }
 }

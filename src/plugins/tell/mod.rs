@@ -7,17 +7,20 @@ use irc::client::prelude::*;
 use chrono::NaiveDateTime;
 use humantime::format_duration;
 use std::time::Duration;
+use itertools::Itertools;
 use time;
 
-use plugin::*;
-use FrippyClient;
+use crate::plugin::*;
+use crate::FrippyClient;
 
 use self::error::*;
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
 use failure::Fail;
 use failure::ResultExt;
 use log::{debug, trace};
+
+use frippy_derive::PluginName;
 
 pub mod database;
 use self::database::Database;
@@ -43,11 +46,15 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
 
         let mut online = Vec::new();
 
-        let receivers = command.tokens[0].split(',').filter(|&s| !s.is_empty());
+        let receivers = command.tokens[0]
+            .split(',')
+            .filter(|&s| !s.is_empty())
+            .unique()
+            .collect::<Vec<_>>();
         let sender = command.source;
 
         let mut no_receiver = true;
-        for receiver in receivers {
+        for receiver in &receivers {
             if receiver.eq_ignore_ascii_case(client.current_nickname())
                 || receiver.eq_ignore_ascii_case(&sender)
             {
@@ -96,15 +103,13 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
             no_receiver = false;
         }
 
-        Ok(if no_receiver && online.is_empty() {
+        let resp = if no_receiver {
             String::from("Invalid receiver.")
         } else {
-            match online.len() {
-                0 => format!("Got it!"),
-                1 => format!("{} is currently online.", online[0]),
-                _ => format!("{} are currently online.", online.join(", ")),
-            }
-        })
+            format!("Sending tell to {}.", receivers.join(", "))
+        };
+
+        Ok(resp)
     }
 
     fn on_namelist(&self, client: &C, channel: &str) -> Result<(), FrippyError> {
@@ -260,6 +265,9 @@ impl<T: Database, C: FrippyClient> fmt::Debug for Tell<T, C> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "TellError"]
     pub enum ErrorKind {

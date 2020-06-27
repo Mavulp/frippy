@@ -8,8 +8,8 @@ use irc::client::prelude::*;
 use chrono::{self, NaiveDateTime};
 use time;
 
-use plugin::*;
-use FrippyClient;
+use crate::plugin::*;
+use crate::FrippyClient;
 
 pub mod database;
 mod parser;
@@ -17,9 +17,12 @@ use self::database::Database;
 use self::parser::CommandParser;
 
 use self::error::*;
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
 use failure::ResultExt;
+use log::{debug, error};
+
+use frippy_derive::PluginName;
 
 fn get_time() -> NaiveDateTime {
     let tm = time::now().to_timespec();
@@ -140,7 +143,8 @@ impl<T: Database + 'static, C: FrippyClient> Remind<T, C> {
 
         debug!("New event: {:?}", event);
 
-        Ok(self.events
+        Ok(self
+            .events
             .write()
             .insert_event(&event)
             .map(|id| format!("Created reminder with id {} at {} UTC", id, time))?)
@@ -168,7 +172,8 @@ impl<T: Database + 'static, C: FrippyClient> Remind<T, C> {
             .remove(0)
             .parse::<i64>()
             .context(ErrorKind::Parsing)?;
-        let event = self.events
+        let event = self
+            .events
             .read()
             .get_event(id)
             .context(ErrorKind::NotFound)?;
@@ -273,6 +278,9 @@ impl<T: Database, C: FrippyClient> fmt::Debug for Remind<T, C> {
 }
 
 pub mod error {
+    use failure::Fail;
+    use frippy_derive::Error;
+
     #[derive(Copy, Clone, Eq, PartialEq, Debug, Fail, Error)]
     #[error = "RemindError"]
     pub enum ErrorKind {

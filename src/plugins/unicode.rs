@@ -1,15 +1,15 @@
-extern crate unicode_names;
-
 use std::marker::PhantomData;
 
 use irc::client::prelude::*;
 
-use plugin::*;
-use FrippyClient;
+use crate::plugin::*;
+use crate::FrippyClient;
 
-use error::ErrorKind as FrippyErrorKind;
-use error::FrippyError;
+use crate::error::ErrorKind as FrippyErrorKind;
+use crate::error::FrippyError;
 use failure::Fail;
+
+use frippy_derive::PluginName;
 
 #[derive(PluginName, Default, Debug)]
 pub struct Unicode<C> {
@@ -38,20 +38,29 @@ impl<C: FrippyClient> Unicode<C> {
 
         let mut buf = [0; 4];
 
-        let byte_string = character
+        let bytes = character
             .encode_utf8(&mut buf)
             .as_bytes()
             .iter()
-            .map(|b| format!("{:#b}", b))
-            .collect::<Vec<String>>()
-            .join(",");
+            .map(|b| format!("{:#x}", b))
+            .collect::<Vec<String>>();
 
         let name = self.get_name(character);
 
-        format!(
-            "{} is '{}' | UTF-8: {2:#x} ({2}), Bytes: [{3}]",
-            character, name, character as u32, byte_string
-        )
+        if bytes.len() > 1 {
+            format!(
+                "{} is '{}' | UTF-8: {2:#x} ({2}), Bytes: [{3}]",
+                character,
+                name,
+                character as u32,
+                bytes.join(",")
+            )
+        } else {
+            format!(
+                "{} is '{}' | UTF-8: {2:#x} ({2})",
+                character, name, character as u32
+            )
+        }
     }
 }
 
@@ -67,19 +76,20 @@ impl<C: FrippyClient> Plugin for Unicode<C> {
     }
 
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
-        if command.tokens.is_empty() || command.tokens[0].is_empty() {
-            let msg = "No non-space character was found.";
+        let token = match command.tokens.iter().find(|t| !t.is_empty()) {
+            Some(t) => t,
+            None => {
+                let msg = "No non-space character was found.";
 
-            if let Err(e) = client.send_notice(command.source, msg) {
-                Err(e.context(FrippyErrorKind::Connection))?;
+                if let Err(e) = client.send_notice(command.source, msg) {
+                    Err(e.context(FrippyErrorKind::Connection))?;
+                }
+
+                return Ok(());
             }
+        };
 
-            return Ok(());
-        }
-
-        let content = &command.tokens[0];
-
-        if let Err(e) = client.send_privmsg(command.target, &self.format_response(&content)) {
+        if let Err(e) = client.send_privmsg(command.target, &self.format_response(&token)) {
             Err(e.context(FrippyErrorKind::Connection))?;
         }
 

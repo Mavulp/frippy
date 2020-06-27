@@ -230,7 +230,7 @@ where
 
 #[derive(Clone, Debug)]
 struct ThreadedPlugins<C: FrippyClient> {
-    plugins: HashMap<String, Arc<Plugin<Client = C>>>,
+    plugins: HashMap<String, Arc<dyn Plugin<Client = C>>>,
 }
 
 impl<C: FrippyClient + 'static> ThreadedPlugins<C> {

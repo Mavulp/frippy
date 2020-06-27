@@ -139,7 +139,8 @@ impl<T: Database, C: Client> Factoid<T, C> {
             .get_factoid(name, idx)
             .context(ErrorKind::NotFound)?;
 
-        let message = factoid.content.replace("\n", "|").replace("\r", "");
+        let mut message = factoid.content.replace("\n", "|").replace("\r", "");
+        message.truncate(512);
 
         Ok(format!("{}: {}", factoid.name, message))
     }
@@ -179,7 +180,7 @@ impl<T: Database, C: Client> Factoid<T, C> {
             let factoid = self.factoids.read().get_factoid(&name, count - 1)?;
 
             let content = factoid.content;
-            let value = if content.starts_with('>') {
+            let mut message = if content.starts_with('>') {
                 let content = String::from(&content[1..]);
 
                 if content.starts_with('>') {
@@ -197,7 +198,8 @@ impl<T: Database, C: Client> Factoid<T, C> {
                 content
             };
 
-            Ok(value.replace("\n", "|").replace("\r", ""))
+            message.truncate(512);
+            Ok(message.replace("\n", "|").replace("\r", ""))
         }
     }
 

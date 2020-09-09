@@ -332,15 +332,21 @@ impl<T: Database, C: Client> Quote<T, C> {
 
                 Ok(format!(
                     "{}'s quote was added by {} at {} UTC",
-                    quotee, quote.author, quote.created
+                    quote.quotee, quote.author, quote.created
                 ))
             }
         }
     }
 
     fn help(&self) -> &str {
-        "usage: quotes <subcommand>\r\n\
-         subcommands: add, get, search, next, info, help"
+        "usage: quote <subcommand>\r\n\
+         subcommands:\r\n \
+         add USER QUOTE                    Add a new quote\r\n \
+         get [user] [index]                Get a random or specific quote\r\n \
+         search user/channel [name] QUERY  Search the quote of either the current channel or a user\r\n \
+         next                              Go to next quote from the previous search/get\r\n \
+         info USER [index]                 Get all available information about a quote\r\n \
+         help                              Get this message"
     }
 }
 

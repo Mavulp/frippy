@@ -42,6 +42,7 @@ use crate::plugin::*;
 use crate::error::*;
 use failure::ResultExt;
 use log::{debug, error, info};
+use regex::Regex;
 
 pub use irc::client::data::Config;
 use irc::client::ext::ClientExt;
@@ -162,12 +163,11 @@ impl<'a> Bot<'a> {
         client.identify().context(ErrorKind::Connection)?;
         info!("Identified");
 
-        // TODO Verify if we actually need to clone twice
-        let plugins = self.plugins.clone();
+        let mut plugins = self.plugins.clone();
         let prefix = self.prefix.to_owned();
 
         reactor.register_client_with_handler(client, move |client, message| {
-            process_msg(client, plugins.clone(), &prefix.clone(), message)
+            process_msg(client, &mut plugins, &prefix, message)
         });
 
         Ok(())
@@ -176,13 +176,64 @@ impl<'a> Bot<'a> {
 
 fn process_msg<C>(
     client: &C,
-    mut plugins: ThreadedPlugins<C>,
+    plugins: &mut ThreadedPlugins<C>,
     prefix: &str,
-    message: Message,
+    mut message: Message,
 ) -> Result<(), IrcError>
 where
     C: FrippyClient + 'static,
 {
+    if let (Command::PRIVMSG(target, content), Some(options)) =
+        (&message.command, &client.config().options)
+    {
+        let nick = message.source_nickname().unwrap().to_owned();
+        let (mut bridge_user, mut bridge_message) = (None, None);
+        if let Some(bridge_re) = options.get("bridge_relay_format") {
+            // FIXME store regex and remove unwrap
+            let re = Regex::new(bridge_re).unwrap();
+            if let Some(caps) = re.captures(&nick) {
+                bridge_user = caps.name("username").map(|c| c.as_str().to_owned());
+            }
+        }
+
+        if bridge_user.is_some() || Some(&nick) == options.get("bridge_name") {
+            if let Some(ignore) = options.get("bridge_ignore_regex") {
+                // FIXME store regex and remove unwrap
+                let re = Regex::new(ignore).unwrap();
+                if re.is_match(&content) {
+                    return Ok(());
+                }
+            }
+
+            if let Some(re_str) = options.get("bridge_regex") {
+                // FIXME store regex and remove unwrap
+                let re = Regex::new(re_str).unwrap();
+                if let Some(caps) = re.captures(&content) {
+                    if bridge_user.is_none() {
+                        bridge_user = caps.name("username").map(|c| c.as_str().to_owned());
+                    }
+                    bridge_message = caps.name("message").map(|c| c.as_str().to_owned());
+                }
+            }
+        }
+
+        if let Some(mut bridge_user) = bridge_user {
+            if Some("true")
+                == options
+                    .get("bridge_remove_zws")
+                    .map(|s| s.to_lowercase())
+                    .as_deref()
+            {
+                bridge_user = bridge_user.replace("\u{200b}", "");
+            }
+            message.prefix = message.prefix.map(|s| s.replace(&nick, &bridge_user));
+        }
+
+        if let Some(bridge_message) = bridge_message {
+            message.command = Command::PRIVMSG(target.to_owned(), bridge_message);
+        }
+    }
+
     // Log any channels we join
     if let Command::JOIN(ref channel, _, _) = message.command {
         if message.source_nickname().unwrap() == client.current_nickname() {

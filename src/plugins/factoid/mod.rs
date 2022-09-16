@@ -5,10 +5,10 @@ use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use rlua::prelude::*;
-use rlua::HookTriggers;
 use antidote::RwLock;
 use irc::client::prelude::*;
+use rlua::prelude::*;
+use rlua::HookTriggers;
 
 use chrono::NaiveDateTime;
 use time;
@@ -30,11 +30,6 @@ use failure::{format_err, ResultExt};
 use frippy_derive::PluginName;
 
 static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
-
-enum FactoidResponse {
-    Public(String),
-    Private(String),
-}
 
 #[derive(PluginName)]
 pub struct Factoid<T: Database, C: Client> {
@@ -328,46 +323,38 @@ impl<T: Database, C: FrippyClient> Plugin for Factoid<T, C> {
         client: &Self::Client,
         mut command: PluginCommand,
     ) -> Result<(), FrippyError> {
-        use self::FactoidResponse::{Private, Public};
-
         if command.tokens.is_empty() {
             client
-                .send_notice(&command.source, "Invalid command")
+                .send_privmsg(&command.target, "Invalid command")
                 .context(FrippyErrorKind::Connection)?;
 
             return Ok(());
         }
 
         let target = command.target.clone();
-        let source = command.source.clone();
 
         let sub_command = command.tokens.remove(0);
         let result = match sub_command.as_ref() {
-            "add" => self.add(&mut command).map(|s| Private(s.to_owned())),
-            "fromurl" => self
-                .add_from_url(&mut command)
-                .map(|s| Private(s.to_owned())),
-            "remove" => self.remove(&mut command).map(|s| Private(s.to_owned())),
-            "get" => self.get(&command).map(Public),
-            "info" => self.info(&command).map(Public),
-            "exec" => self.exec(command).map(Public),
-            "help" => Ok(Private(self.help().to_owned())),
+            "add" => self.add(&mut command).map(|s| s.to_owned()),
+            "fromurl" => self.add_from_url(&mut command).map(|s| s.to_owned()),
+            "remove" => self.remove(&mut command).map(|s| s.to_owned()),
+            "get" => self.get(&command),
+            "info" => self.info(&command),
+            "exec" => self.exec(command),
+            "help" => Ok(self.help().to_owned()),
             _ => Err(ErrorKind::InvalidCommand.into()),
         };
 
         match result {
-            Ok(v) => match v {
-                Public(m) => client
+            Ok(m) => {
+                client
                     .send_privmsg(&target, &m)
-                    .context(FrippyErrorKind::Connection)?,
-                Private(m) => client
-                    .send_notice(&source, &m)
-                    .context(FrippyErrorKind::Connection)?,
-            },
+                    .context(FrippyErrorKind::Connection)?;
+            }
             Err(e) => {
                 let message = e.to_string();
                 client
-                    .send_notice(&source, &message)
+                    .send_privmsg(&target, &message)
                     .context(FrippyErrorKind::Connection)?;
                 Err(e).context(FrippyErrorKind::Factoid)?
             }

@@ -81,7 +81,7 @@ impl<C: FrippyClient> Plugin for Unicode<C> {
             None => {
                 let msg = "No non-space character was found.";
 
-                if let Err(e) = client.send_notice(command.source, msg) {
+                if let Err(e) = client.send_privmsg(command.target, msg) {
                     Err(e.context(FrippyErrorKind::Connection))?;
                 }
 

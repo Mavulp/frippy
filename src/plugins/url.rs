@@ -192,8 +192,8 @@ impl<C: FrippyClient> Plugin for UrlTitles<C> {
 
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         client
-            .send_notice(
-                &command.source,
+            .send_privmsg(
+                &command.target,
                 "This Plugin does not implement any commands.",
             )
             .context(FrippyErrorKind::Connection)?;

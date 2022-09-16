@@ -36,8 +36,8 @@ impl<C: FrippyClient> Plugin for Help<C> {
 
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         client
-            .send_notice(
-                &command.source,
+            .send_privmsg(
+                &command.target,
                 "Available commands: help, tell, factoids, remind, quote, unicode\r\n\
                  For more detailed help call help on the specific command.\r\n\
                  Example: 'remind help'",

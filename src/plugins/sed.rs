@@ -134,9 +134,9 @@ impl<C: FrippyClient> Plugin for Sed<C> {
                         Err(e) => match e.kind() {
                             ErrorKind::InvalidRegex => {
                                 let err = e.cause().unwrap().to_string();
-                                client.send_notice(user, &err.replace('\n', "\r\n"))
+                                client.send_privmsg(channel, &err.replace('\n', "\r\n"))
                             }
-                            _ => client.send_notice(user, &e.to_string()),
+                            _ => client.send_privmsg(channel, &e.to_string()),
                         },
                     };
 
@@ -162,8 +162,8 @@ impl<C: FrippyClient> Plugin for Sed<C> {
 
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         client
-            .send_notice(
-                &command.source,
+            .send_privmsg(
+                &command.target,
                 "Currently this Plugin does not implement any commands.",
             )
             .context(FrippyErrorKind::Connection)?;

@@ -6,8 +6,8 @@ use irc::client::prelude::*;
 
 use chrono::NaiveDateTime;
 use humantime::format_duration;
-use std::time::Duration;
 use itertools::Itertools;
+use std::time::Duration;
 use time;
 
 use crate::plugin::*;
@@ -127,16 +127,14 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
                 .map(|u| u.get_nickname())
                 .filter(|u| receivers.iter().any(|r| r == &u.to_lowercase()))
             {
-                self.send_tells(client, receiver)?;
+                self.send_tells(client, receiver, channel)?;
             }
-
-            Ok(())
-        } else {
-            Ok(())
         }
+
+        Ok(())
     }
 
-    fn send_tells(&self, client: &C, receiver: &str) -> Result<(), FrippyError> {
+    fn send_tells(&self, client: &C, receiver: &str, channel: &str) -> Result<(), FrippyError> {
         trace!("Checking {} for tells", receiver);
 
         if client.current_nickname() == receiver {
@@ -163,17 +161,17 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
             let human_dur = format_duration(dur);
 
             let message = format!(
-                "Tell from {} {} ago: {}",
-                tell.sender, human_dur, tell.message
+                "{}, {} sent you a tell {} ago: {}",
+                receiver, tell.sender, human_dur, tell.message
             );
 
             client
-                .send_notice(receiver, &message)
+                .send_privmsg(channel, &message)
                 .context(FrippyErrorKind::Connection)?;
 
             debug!(
-                "Sent {:?} from {:?} to {:?}",
-                tell.message, tell.sender, receiver
+                "Sent {:?} from {:?} to {:?} in channel {:?}",
+                tell.message, tell.sender, receiver, channel,
             );
         }
 
@@ -199,10 +197,13 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
 impl<T: Database, C: FrippyClient> Plugin for Tell<T, C> {
     type Client = C;
     fn execute(&self, client: &Self::Client, message: &Message) -> ExecutionStatus {
+        let source = message.source_nickname();
+        let target = message.response_target();
+
         let res = match message.command {
-            Command::JOIN(_, _, _) => self.send_tells(client, message.source_nickname().unwrap()),
-            Command::NICK(ref nick) => self.send_tells(client, nick),
-            Command::PRIVMSG(_, _) => self.send_tells(client, message.source_nickname().unwrap()),
+            Command::JOIN(_, _, _) => self.send_tells(client, source.unwrap(), target.unwrap()),
+            Command::NICK(ref nick) => self.send_tells(client, nick, nick),
+            Command::PRIVMSG(_, _) => self.send_tells(client, source.unwrap(), target.unwrap()),
             Command::Response(resp, ref chan_info, _) => {
                 if resp == Response::RPL_NAMREPLY {
                     debug!("NAMREPLY info: {:?}", chan_info);
@@ -228,23 +229,23 @@ impl<T: Database, C: FrippyClient> Plugin for Tell<T, C> {
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
             client
-                .send_notice(&command.source, &self.invalid_command())
+                .send_privmsg(&command.target, &self.invalid_command())
                 .context(FrippyErrorKind::Connection)?;
             return Ok(());
         }
 
-        let sender = command.source.to_owned();
+        let target = command.target.clone();
 
         match command.tokens[0].as_ref() {
             "help" => client
-                .send_notice(&command.source, &self.help())
+                .send_privmsg(&target, &self.help())
                 .context(FrippyErrorKind::Connection),
             _ => match self.tell_command(client, command) {
                 Ok(msg) => client
-                    .send_notice(&sender, &msg)
+                    .send_privmsg(&target, &msg)
                     .context(FrippyErrorKind::Connection),
                 Err(e) => client
-                    .send_notice(&sender, &e.to_string())
+                    .send_privmsg(&target, &e.to_string())
                     .context(FrippyErrorKind::Connection),
             },
         }?;

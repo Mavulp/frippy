@@ -23,11 +23,6 @@ use failure::ResultExt;
 
 use frippy_derive::PluginName;
 
-enum QuoteResponse {
-    Public(String),
-    Private(String),
-}
-
 #[derive(Clone)]
 enum PreviousCommand {
     Get,
@@ -149,7 +144,7 @@ impl<T: Database, C: Client> Quote<T, C> {
             idx += count + 1;
         }
 
-        let quote = self
+        let mut quote = self
             .quotes
             .read()
             .get_user_quote(quotee, channel, idx)
@@ -365,43 +360,37 @@ impl<T: Database, C: FrippyClient> Plugin for Quote<T, C> {
         client: &Self::Client,
         mut command: PluginCommand,
     ) -> Result<(), FrippyError> {
-        use self::QuoteResponse::{Private, Public};
-
         if command.tokens.is_empty() {
             client
-                .send_notice(&command.source, &ErrorKind::InvalidCommand.to_string())
+                .send_privmsg(&command.target, &ErrorKind::InvalidCommand.to_string())
                 .context(FrippyErrorKind::Connection)?;
 
             return Ok(());
         }
 
         let target = command.target.clone();
-        let source = command.source.clone();
 
         let sub_command = command.tokens.remove(0).to_lowercase();
         let result = match sub_command.as_ref() {
-            "add" => self.add(&mut command).map(|s| Private(s.to_owned())),
-            "get" => self.get(&command).map(Public),
-            "search" => self.search(&mut command).map(Public),
-            "next" => self.next(command.target).map(Public),
-            "info" => self.info(&command).map(Public),
-            "help" => Ok(Private(self.help().to_owned())),
+            "add" => self.add(&mut command).map(|s| s.to_owned()),
+            "get" => self.get(&command),
+            "search" => self.search(&mut command),
+            "next" => self.next(command.target),
+            "info" => self.info(&command),
+            "help" => Ok(self.help().to_owned()),
             _ => Err(ErrorKind::InvalidCommand.into()),
         };
 
         match result {
-            Ok(v) => match v {
-                Public(m) => client
+            Ok(m) => {
+                client
                     .send_privmsg(&target, &m)
-                    .context(FrippyErrorKind::Connection)?,
-                Private(m) => client
-                    .send_notice(&source, &m)
-                    .context(FrippyErrorKind::Connection)?,
-            },
+                    .context(FrippyErrorKind::Connection)?;
+            }
             Err(e) => {
                 let message = e.to_string();
                 client
-                    .send_notice(&source, &message)
+                    .send_privmsg(&target, &message)
                     .context(FrippyErrorKind::Connection)?;
                 Err(e).context(FrippyErrorKind::Quote)?
             }

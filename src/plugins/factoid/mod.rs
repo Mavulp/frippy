@@ -206,7 +206,7 @@ impl<T: Database, C: Client> Factoid<T, C> {
                 content
             };
 
-            message.truncate(512);
+            message.truncate(412);
             Ok(message.replace("\n", "|").replace("\r", ""))
         }
     }

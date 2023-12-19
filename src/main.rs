@@ -5,6 +5,7 @@ use std::sync::Arc;
 use glob::glob;
 use irc::client::reactor::IrcReactor;
 
+use frippy::plugins::counter::Counter;
 use frippy::plugins::factoid::Factoid;
 use frippy::plugins::help::Help;
 use frippy::plugins::keepnick::KeepNick;
@@ -107,6 +108,7 @@ fn run() -> Result<(), Error> {
                             bot.add_plugin(Quote::new(pool.clone()));
                             bot.add_plugin(Tell::new(pool.clone()));
                             bot.add_plugin(Remind::new(pool.clone()));
+                            bot.add_plugin(Counter::new(pool.clone()));
                             info!("Connected to MySQL server")
                         }
                         Err(e) => {
@@ -114,6 +116,7 @@ fn run() -> Result<(), Error> {
                             bot.add_plugin(Quote::new(HashMap::new()));
                             bot.add_plugin(Tell::new(HashMap::new()));
                             bot.add_plugin(Remind::new(HashMap::new()));
+                            bot.add_plugin(Counter::new(HashMap::new()));
                             error!("Failed to run migrations: {}", e);
                         }
                     },
@@ -124,6 +127,7 @@ fn run() -> Result<(), Error> {
                 bot.add_plugin(Quote::new(HashMap::new()));
                 bot.add_plugin(Tell::new(HashMap::new()));
                 bot.add_plugin(Remind::new(HashMap::new()));
+                bot.add_plugin(Counter::new(HashMap::new()));
             }
         }
         #[cfg(not(feature = "mysql"))]
@@ -135,6 +139,7 @@ fn run() -> Result<(), Error> {
             bot.add_plugin(Quote::new(HashMap::new()));
             bot.add_plugin(Tell::new(HashMap::new()));
             bot.add_plugin(Remind::new(HashMap::new()));
+            bot.add_plugin(Counter::new(HashMap::new()));
         }
 
         if let Some(disabled_plugins) = disabled_plugins {

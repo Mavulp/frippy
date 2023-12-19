@@ -63,7 +63,7 @@ impl<C: FrippyClient> Plugin for KeepNick<C> {
     }
 
     fn execute_threaded(&self, _: &Self::Client, _: &Message) -> Result<(), FrippyError> {
-        panic!("Tell should not use threading")
+        panic!("KeepNick should not use threading")
     }
 
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {

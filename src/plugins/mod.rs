@@ -1,4 +1,5 @@
 //! Collection of plugins included
+pub mod counter;
 pub mod factoid;
 pub mod help;
 pub mod keepnick;

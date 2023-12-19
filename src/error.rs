@@ -44,4 +44,8 @@ pub enum ErrorKind {
     /// A Remind error
     #[fail(display = "A Remind error has occured")]
     Remind,
+
+    /// A Counter error
+    #[fail(display = "A Counter error has occured")]
+    Counter,
 }

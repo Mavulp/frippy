@@ -69,7 +69,8 @@ impl<T: Database, C: Client> Quote<T, C> {
             idx: count + 1,
             content,
             author,
-            created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
+            created: NaiveDateTime::from_timestamp_opt(tm.sec, 0u32)
+                .expect("fails after death of universe"),
         };
 
         let response = self

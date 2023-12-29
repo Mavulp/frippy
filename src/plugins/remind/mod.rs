@@ -26,7 +26,7 @@ use frippy_derive::PluginName;
 
 fn get_time() -> NaiveDateTime {
     let tm = time::now().to_timespec();
-    NaiveDateTime::from_timestamp(tm.sec, 0u32)
+    NaiveDateTime::from_timestamp_opt(tm.sec, 0u32).unwrap()
 }
 
 fn get_events<T: Database>(db: &RwLock<T>, in_next: chrono::Duration) -> Vec<database::Event> {

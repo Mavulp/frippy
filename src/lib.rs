@@ -174,6 +174,7 @@ impl<'a> Bot<'a> {
     }
 }
 
+#[allow(clippy::result_large_err)] // Stupid library errortype
 fn process_msg<C>(
     client: &C,
     plugins: &mut ThreadedPlugins<C>,

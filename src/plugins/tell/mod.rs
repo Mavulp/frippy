@@ -91,7 +91,7 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
             let tell = database::NewTellMessage {
                 sender: &sender,
                 receiver: &receiver.to_lowercase(),
-                time: NaiveDateTime::from_timestamp(tm.sec, 0u32),
+                time: NaiveDateTime::from_timestamp_opt(tm.sec, 0u32).unwrap(),
                 message: &message,
             };
 

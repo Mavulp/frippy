@@ -59,7 +59,8 @@ impl<T: Database, C: Client> Factoid<T, C> {
             idx: count,
             content,
             author,
-            created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
+            created: NaiveDateTime::from_timestamp_opt(tm.sec, 0u32)
+                .expect("fails after death of universe"),
         };
 
         self.factoids
@@ -179,8 +180,8 @@ impl<T: Database, C: Client> Factoid<T, C> {
             let factoid = self.factoids.read().get_factoid(&name, count - 1)?;
 
             let content = factoid.content;
-            let mut message = if content.starts_with('>') {
-                let content = String::from(&content[1..]);
+            let mut message = if let Some(stripped) = content.strip_prefix('>') {
+                let content = String::from(stripped);
 
                 if content.starts_with('>') {
                     content

@@ -5,6 +5,7 @@ use log::error;
 
 use frippy_derive::Error;
 
+#[allow(deprecated)] //Fail derive is giving issues here on the .causes() call
 pub fn log_error(e: &FrippyError) {
     let text = e
         .causes()

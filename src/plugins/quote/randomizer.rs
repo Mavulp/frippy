@@ -20,7 +20,7 @@ impl RandomIndex {
 
     pub fn init(&mut self, count: i32) {
         if !self.__initialized {
-            let list = Self::generate_list(count.into());
+            let list = Self::generate_list(count);
 
             self.count = count;
             self.list = list;
@@ -37,7 +37,7 @@ impl RandomIndex {
         self.list.get(self.local_index)
     }
 
-    pub fn update_count(&mut self, new_count: i32) {
+    pub fn _update_count(&mut self, new_count: i32) {
         self.count = new_count;
     }
 
@@ -49,7 +49,7 @@ impl RandomIndex {
         if count < RANDOM_INDEX_SIZE as i32 {
             println!("warning: random quote indexer expects >64 quotes, only {count} provided");
         }
-        let mut numbers: Vec<i32> = (1..count + 1).into_iter().collect();
+        let mut numbers: Vec<i32> = (1..count + 1).collect();
         numbers.shuffle(&mut rand::thread_rng());
         numbers
     }

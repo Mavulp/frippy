@@ -41,8 +41,10 @@ impl CommandParser {
     }
 
     pub fn with_target(tokens: Vec<String>, target: String) -> Result<Self, RemindError> {
-        let mut parser = CommandParser::default();
-        parser.target = target;
+        let parser = CommandParser {
+            target,
+            ..Default::default()
+        };
 
         parser.parse_tokens(tokens)
     }
@@ -146,8 +148,16 @@ impl CommandParser {
                 let now = time::now();
                 let date = NaiveDate::from_ymd_opt(now.tm_year + 1900, month, day)
                     .ok_or(ErrorKind::InvalidDate)?;
-                if date.succ().and_hms(0, 0, 0).timestamp() < now.to_timespec().sec {
-                    NaiveDate::from_ymd(now.tm_year + 1901, month, day)
+                if date
+                    .succ_opt()
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap()
+                    .timestamp()
+                    < now.to_timespec().sec
+                {
+                    NaiveDate::from_ymd_opt(now.tm_year + 1901, month, day)
+                        .ok_or(ErrorKind::InvalidDate)?
                 } else {
                     date
                 }
@@ -171,7 +181,7 @@ impl CommandParser {
         let hour = nums[0];
         let minute = nums[1];
 
-        Ok(NaiveTime::from_hms(hour, minute, 0))
+        Ok(NaiveTime::from_hms_opt(hour, minute, 0).unwrap())
     }
 
     pub fn get_time(&self, min_dur: Duration) -> Result<NaiveDateTime, RemindError> {
@@ -183,10 +193,10 @@ impl CommandParser {
             }
 
             let tm = time::now().to_timespec();
-            return Ok(NaiveDateTime::from_timestamp(
-                tm.sec + duration.as_secs() as i64,
-                0u32,
-            ));
+            return Ok(
+                NaiveDateTime::from_timestamp_opt(tm.sec + duration.as_secs() as i64, 0u32)
+                    .expect("fails after death of universe"),
+            );
         }
 
         let mut date = None;
@@ -213,7 +223,7 @@ impl CommandParser {
                 if time_today.timestamp() < now.to_timespec().sec {
                     debug!("tomorrow");
 
-                    Ok(today.succ().and_time(time))
+                    Ok(today.succ_opt().unwrap().and_time(time))
                 } else {
                     debug!("today");
 
@@ -223,7 +233,8 @@ impl CommandParser {
         } else {
             Ok(date
                 .expect("At this point date has to be set")
-                .and_hms(0, 0, 0))
+                .and_hms_opt(0, 0, 0)
+                .unwrap())
         }
     }
 

@@ -106,7 +106,7 @@ impl<T: Database, C: Client> Quote<T, C> {
             .iter()
             .filter(|t| !t.is_empty())
             .collect::<Vec<_>>();
-        let quotee = &tokens.get(0);
+        let quotee = &tokens.first();
         let channel = &command.target;
 
         match quotee {

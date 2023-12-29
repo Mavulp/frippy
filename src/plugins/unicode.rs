@@ -89,7 +89,7 @@ impl<C: FrippyClient> Plugin for Unicode<C> {
             }
         };
 
-        if let Err(e) = client.send_privmsg(command.target, &self.format_response(&token)) {
+        if let Err(e) = client.send_privmsg(command.target, self.format_response(token)) {
             Err(e.context(FrippyErrorKind::Connection))?;
         }
 

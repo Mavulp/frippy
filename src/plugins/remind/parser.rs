@@ -176,7 +176,7 @@ impl CommandParser {
 
     pub fn get_time(&self, min_dur: Duration) -> Result<NaiveDateTime, RemindError> {
         if let Some(ref str_duration) = self.in_duration {
-            let duration = parse_duration(&str_duration).context(ErrorKind::InvalidTime)?;
+            let duration = parse_duration(str_duration).context(ErrorKind::InvalidTime)?;
 
             if duration < min_dur {
                 return Err(ErrorKind::TimeShort.into());
@@ -229,7 +229,7 @@ impl CommandParser {
 
     pub fn get_repeat(&self, min_dur: Duration) -> Result<Option<Duration>, RemindError> {
         if let Some(mut words) = self.every_time.clone() {
-            if !words.chars().next().unwrap().is_digit(10) {
+            if !words.chars().next().unwrap().is_ascii_digit() {
                 words.insert(0, '1');
             }
             let dur = parse_duration(&words).context(ErrorKind::InvalidTime)?;

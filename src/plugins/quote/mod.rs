@@ -88,7 +88,7 @@ impl<T: Database, C: Client> Quote<T, C> {
         let channel = &command.target;
         let content = command.tokens.join(" ");
 
-        Ok(self.create_quote(&quotee, channel, &content, &command.source)?)
+        self.create_quote(&quotee, channel, &content, &command.source)
     }
 
     fn get(&self, command: &PluginCommand) -> Result<String, QuoteError> {
@@ -144,7 +144,7 @@ impl<T: Database, C: Client> Quote<T, C> {
             idx += count + 1;
         }
 
-        let mut quote = self
+        let quote = self
             .quotes
             .read()
             .get_user_quote(quotee, channel, idx)
@@ -250,7 +250,7 @@ impl<T: Database, C: Client> Quote<T, C> {
         let quote = self
             .quotes
             .read()
-            .search_user_quote(&query, &user, channel, offset)
+            .search_user_quote(query, user, channel, offset)
             .context(ErrorKind::NotFound)?;
 
         let response = format!("\"{}\" - {}[{}]", quote.content, quote.quotee, quote.idx);
@@ -272,7 +272,7 @@ impl<T: Database, C: Client> Quote<T, C> {
         let quote = self
             .quotes
             .read()
-            .search_channel_quote(&query, channel, offset)
+            .search_channel_quote(query, channel, offset)
             .context(ErrorKind::NotFound)?;
 
         let response = format!("\"{}\" - {}[{}]", quote.content, quote.quotee, quote.idx);
@@ -362,7 +362,7 @@ impl<T: Database, C: FrippyClient> Plugin for Quote<T, C> {
     ) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
             client
-                .send_privmsg(&command.target, &ErrorKind::InvalidCommand.to_string())
+                .send_privmsg(&command.target, ErrorKind::InvalidCommand.to_string())
                 .context(FrippyErrorKind::Connection)?;
 
             return Ok(());
@@ -384,13 +384,13 @@ impl<T: Database, C: FrippyClient> Plugin for Quote<T, C> {
         match result {
             Ok(m) => {
                 client
-                    .send_privmsg(&target, &m)
+                    .send_privmsg(&target, m)
                     .context(FrippyErrorKind::Connection)?;
             }
             Err(e) => {
                 let message = e.to_string();
                 client
-                    .send_privmsg(&target, &message)
+                    .send_privmsg(&target, message)
                     .context(FrippyErrorKind::Connection)?;
                 Err(e).context(FrippyErrorKind::Quote)?
             }

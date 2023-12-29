@@ -95,7 +95,7 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database
     fn get_channel_quote(&self, channel: &str, idx: i32) -> Result<Quote, QuoteError> {
         let quote = self
             .iter()
-            .filter(|&(&(_, ref c, _), _)| c == channel)
+            .filter(|&((_, c, _), _)| c == channel)
             .nth(idx as usize - 1)
             .ok_or(ErrorKind::NotFound)?
             .1
@@ -107,7 +107,7 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database
     fn count_user_quotes(&self, quotee: &str, channel: &str) -> Result<i32, QuoteError> {
         let count = self
             .iter()
-            .filter(|&(&(ref q, ref c, _), _)| q == quotee && c == channel)
+            .filter(|&((q, c, _), _)| q == quotee && c == channel)
             .count();
 
         Ok(count as i32)
@@ -116,7 +116,7 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database
     fn count_channel_quotes(&self, channel: &str) -> Result<i32, QuoteError> {
         let count = self
             .iter()
-            .filter(|&(&(_, ref c, _), _)| c == channel)
+            .filter(|&((_, c, _), _)| c == channel)
             .count();
 
         Ok(count as i32)
@@ -131,7 +131,7 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database
     ) -> Result<Quote, QuoteError> {
         let quote = self
             .iter()
-            .filter(|&(&(ref q, ref c, _), _)| q == quotee && c == channel)
+            .filter(|&((q, c, _), _)| q == quotee && c == channel)
             .filter(|&(&(_, _, _), q)| q.content.to_lowercase().contains(&query.to_lowercase()))
             .nth(offset as usize)
             .ok_or(ErrorKind::NotFound)?
@@ -149,7 +149,7 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database
     ) -> Result<Quote, QuoteError> {
         let quote = self
             .iter()
-            .filter(|&(&(_, ref c, _), _)| c == channel)
+            .filter(|&((_, c, _), _)| c == channel)
             .filter(|&(&(_, _, _), q)| q.content.contains(query))
             .nth(offset as usize)
             .ok_or(ErrorKind::NotFound)?

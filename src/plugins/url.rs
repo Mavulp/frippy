@@ -96,7 +96,7 @@ impl Title {
     }
 
     fn clean_up(self) -> Self {
-        Title(self.0.trim().replace('\n', "|").replace('\r', "|"), self.1)
+        Title(self.0.trim().replace(['\n', '\r'], "|"), self.1)
     }
 
     pub fn find_clean_ogtitle(body: &str, url: &str) -> Result<Self, UrlError> {
@@ -183,7 +183,7 @@ impl<C: FrippyClient> Plugin for UrlTitles<C> {
             let response = format!("[URL] {}", title);
 
             client
-                .send_privmsg(message.response_target().unwrap(), &response)
+                .send_privmsg(message.response_target().unwrap(), response)
                 .context(FrippyErrorKind::Connection)?;
         }
 
@@ -193,7 +193,7 @@ impl<C: FrippyClient> Plugin for UrlTitles<C> {
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         client
             .send_privmsg(
-                &command.target,
+                command.target,
                 "This Plugin does not implement any commands.",
             )
             .context(FrippyErrorKind::Connection)?;

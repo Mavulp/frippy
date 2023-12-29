@@ -74,7 +74,7 @@ impl<T: Database, C: FrippyClient> Plugin for Counter<T, C> {
             .context(FrippyErrorKind::Counter)?;
 
             client
-                .send_privmsg(&message.response_target().unwrap_or(""), count)
+                .send_privmsg(message.response_target().unwrap_or(""), count)
                 .context(FrippyErrorKind::Connection)?;
         }
 
@@ -84,7 +84,7 @@ impl<T: Database, C: FrippyClient> Plugin for Counter<T, C> {
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         client
             .send_privmsg(
-                &command.target,
+                command.target,
                 "This Plugin does not implement any commands.",
             )
             .context(FrippyErrorKind::Connection)?;

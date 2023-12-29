@@ -37,7 +37,7 @@ impl RandomIndex {
         self.list.get(self.local_index)
     }
 
-    pub fn _update_count(&mut self, new_count: i32) {
+    pub fn update_count(&mut self, new_count: i32) {
         self.count = new_count;
     }
 

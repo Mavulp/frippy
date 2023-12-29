@@ -79,6 +79,8 @@ impl<T: Database, C: Client> Quote<T, C> {
             .insert_quote(&quote)
             .map(|()| "Successfully added!")?;
 
+        self.random_index.lock().update_count(count + 1);
+
         Ok(response)
     }
 

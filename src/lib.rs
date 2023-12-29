@@ -355,7 +355,9 @@ impl<C: FrippyClient + 'static> ThreadedPlugins<C> {
 impl<C: FrippyClient> fmt::Display for ThreadedPlugins<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let plugin_names = self
-            .plugins.values().map(|p| p.name().to_owned())
+            .plugins
+            .values()
+            .map(|p| p.name().to_owned())
             .collect::<Vec<String>>();
         write!(f, "{}", plugin_names.join(", "))
     }

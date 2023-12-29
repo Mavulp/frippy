@@ -62,8 +62,7 @@ impl<T: Database, C: Client> Factoid<T, C> {
             created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
         };
 
-        self
-            .factoids
+        self.factoids
             .write()
             .insert_factoid(&factoid)
             .map(|()| "Successfully added!")

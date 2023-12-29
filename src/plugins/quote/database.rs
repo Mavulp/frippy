@@ -114,10 +114,7 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database
     }
 
     fn count_channel_quotes(&self, channel: &str) -> Result<i32, QuoteError> {
-        let count = self
-            .iter()
-            .filter(|&((_, c, _), _)| c == channel)
-            .count();
+        let count = self.iter().filter(|&((_, c, _), _)| c == channel).count();
 
         Ok(count as i32)
     }

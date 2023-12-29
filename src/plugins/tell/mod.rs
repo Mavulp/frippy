@@ -80,7 +80,9 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
                 .iter()
                 .map(|channel| client.list_users(channel))
                 .map(find_receiver)
-                .any(|option| option.is_some()) && !online.contains(&receiver) {
+                .any(|option| option.is_some())
+                && !online.contains(&receiver)
+            {
                 // online.push(receiver);
             }
 

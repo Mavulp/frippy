@@ -143,8 +143,7 @@ impl<T: Database + 'static, C: FrippyClient> Remind<T, C> {
 
         debug!("New event: {:?}", event);
 
-        self
-            .events
+        self.events
             .write()
             .insert_event(&event)
             .map(|id| format!("Created reminder with id {} at {} UTC", id, time))

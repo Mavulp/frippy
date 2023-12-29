@@ -9,4 +9,4 @@ proc-macro = true
 [dependencies]
 syn = "0.12.13"
 quote = "0.4.2"
-failure = "0.1.2"
+failure = "0.1.8"

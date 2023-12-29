@@ -177,8 +177,8 @@ impl<T: Database, C: Client> Quote<T, C> {
             .lock()
             .insert(channel.to_owned(), PreviousCommand::Get);
 
-        self.random_index.lock().init(count);
         let mut binding = self.random_index.lock();
+        binding.init(count);
         let idx = binding.get().ok_or(ErrorKind::UninitializedRandomizer)?;
 
         let quote = self

@@ -11,7 +11,9 @@ use rand::{thread_rng, Rng};
 use time;
 
 pub mod database;
+pub mod randomizer;
 use self::database::Database;
+use self::randomizer::RandomIndex;
 
 use crate::plugin::*;
 use crate::FrippyClient;
@@ -36,14 +38,18 @@ pub struct Quote<T: Database, C: Client> {
     quotes: RwLock<T>,
     previous_map: Mutex<HashMap<String, PreviousCommand>>,
     phantom: PhantomData<C>,
+    random_index: Mutex<RandomIndex>,
 }
 
 impl<T: Database, C: Client> Quote<T, C> {
     pub fn new(db: T) -> Self {
+        let random_index = RandomIndex::new();
+
         Quote {
             quotes: RwLock::new(db),
             previous_map: Mutex::new(HashMap::new()),
             phantom: PhantomData,
+            random_index: Mutex::new(random_index),
         }
     }
 
@@ -168,12 +174,14 @@ impl<T: Database, C: Client> Quote<T, C> {
             .lock()
             .insert(channel.to_owned(), PreviousCommand::Get);
 
-        let idx = thread_rng().gen_range(1, count + 1);
+        self.random_index.lock().init(count);
+        let mut binding = self.random_index.lock();
+        let idx = binding.get().ok_or(ErrorKind::UninitializedRandomizer)?;
 
         let quote = self
             .quotes
             .read()
-            .get_channel_quote(channel, idx)
+            .get_channel_quote(channel, *idx)
             .context(ErrorKind::NotFound)?;
 
         Ok(format!(
@@ -426,6 +434,10 @@ pub mod error {
         /// Invalid index error
         #[fail(display = "Invalid index")]
         InvalidIndex,
+
+        /// Uninitialized randomizer error
+        #[fail(display = "Uninitialized randomizer")]
+        UninitializedRandomizer,
 
         /// No previous command error
         #[fail(display = "No previous command was found for this channel")]

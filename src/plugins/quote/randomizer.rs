@@ -30,7 +30,7 @@ impl RandomIndex {
 
     pub fn get(&mut self) -> Option<&i32> {
         self.local_index += 1;
-        if self.local_index >= self.list.len() {
+        if self.__initialized && self.local_index >= self.list.len() {
             self.list = Self::generate_list(self.count);
             self.local_index = 0;
         }

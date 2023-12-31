@@ -179,7 +179,7 @@ impl<T: Database, C: Client> Quote<T, C> {
 
         let mut binding = self.random_index.lock();
         binding.init(count);
-        let idx = binding.get().ok_or(ErrorKind::UninitializedRandomizer)?;
+        let idx = binding.get().expect("Randomizer should be initialized");
 
         let quote = self
             .quotes
@@ -437,10 +437,6 @@ pub mod error {
         /// Invalid index error
         #[fail(display = "Invalid index")]
         InvalidIndex,
-
-        /// Uninitialized randomizer error
-        #[fail(display = "Uninitialized randomizer")]
-        UninitializedRandomizer,
 
         /// No previous command error
         #[fail(display = "No previous command was found for this channel")]

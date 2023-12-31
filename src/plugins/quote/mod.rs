@@ -11,7 +11,9 @@ use rand::{thread_rng, Rng};
 use time;
 
 pub mod database;
+pub mod randomizer;
 use self::database::Database;
+use self::randomizer::RandomIndex;
 
 use crate::plugin::*;
 use crate::FrippyClient;
@@ -36,14 +38,18 @@ pub struct Quote<T: Database, C: Client> {
     quotes: RwLock<T>,
     previous_map: Mutex<HashMap<String, PreviousCommand>>,
     phantom: PhantomData<C>,
+    random_index: Mutex<RandomIndex>,
 }
 
 impl<T: Database, C: Client> Quote<T, C> {
     pub fn new(db: T) -> Self {
+        let random_index = RandomIndex::new();
+
         Quote {
             quotes: RwLock::new(db),
             previous_map: Mutex::new(HashMap::new()),
             phantom: PhantomData,
+            random_index: Mutex::new(random_index),
         }
     }
 
@@ -63,7 +69,8 @@ impl<T: Database, C: Client> Quote<T, C> {
             idx: count + 1,
             content,
             author,
-            created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
+            created: NaiveDateTime::from_timestamp_opt(tm.sec, 0u32)
+                .expect("fails after death of universe"),
         };
 
         let response = self
@@ -71,6 +78,8 @@ impl<T: Database, C: Client> Quote<T, C> {
             .write()
             .insert_quote(&quote)
             .map(|()| "Successfully added!")?;
+
+        self.random_index.lock().update_count(count + 1);
 
         Ok(response)
     }
@@ -88,7 +97,7 @@ impl<T: Database, C: Client> Quote<T, C> {
         let channel = &command.target;
         let content = command.tokens.join(" ");
 
-        Ok(self.create_quote(&quotee, channel, &content, &command.source)?)
+        self.create_quote(&quotee, channel, &content, &command.source)
     }
 
     fn get(&self, command: &PluginCommand) -> Result<String, QuoteError> {
@@ -97,7 +106,7 @@ impl<T: Database, C: Client> Quote<T, C> {
             .iter()
             .filter(|t| !t.is_empty())
             .collect::<Vec<_>>();
-        let quotee = &tokens.get(0);
+        let quotee = &tokens.first();
         let channel = &command.target;
 
         match quotee {
@@ -144,7 +153,7 @@ impl<T: Database, C: Client> Quote<T, C> {
             idx += count + 1;
         }
 
-        let mut quote = self
+        let quote = self
             .quotes
             .read()
             .get_user_quote(quotee, channel, idx)
@@ -168,12 +177,14 @@ impl<T: Database, C: Client> Quote<T, C> {
             .lock()
             .insert(channel.to_owned(), PreviousCommand::Get);
 
-        let idx = thread_rng().gen_range(1, count + 1);
+        let mut binding = self.random_index.lock();
+        binding.init(count);
+        let idx = binding.get().ok_or(ErrorKind::UninitializedRandomizer)?;
 
         let quote = self
             .quotes
             .read()
-            .get_channel_quote(channel, idx)
+            .get_channel_quote(channel, *idx)
             .context(ErrorKind::NotFound)?;
 
         Ok(format!(
@@ -250,7 +261,7 @@ impl<T: Database, C: Client> Quote<T, C> {
         let quote = self
             .quotes
             .read()
-            .search_user_quote(&query, &user, channel, offset)
+            .search_user_quote(query, user, channel, offset)
             .context(ErrorKind::NotFound)?;
 
         let response = format!("\"{}\" - {}[{}]", quote.content, quote.quotee, quote.idx);
@@ -272,7 +283,7 @@ impl<T: Database, C: Client> Quote<T, C> {
         let quote = self
             .quotes
             .read()
-            .search_channel_quote(&query, channel, offset)
+            .search_channel_quote(query, channel, offset)
             .context(ErrorKind::NotFound)?;
 
         let response = format!("\"{}\" - {}[{}]", quote.content, quote.quotee, quote.idx);
@@ -362,7 +373,7 @@ impl<T: Database, C: FrippyClient> Plugin for Quote<T, C> {
     ) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
             client
-                .send_privmsg(&command.target, &ErrorKind::InvalidCommand.to_string())
+                .send_privmsg(&command.target, ErrorKind::InvalidCommand.to_string())
                 .context(FrippyErrorKind::Connection)?;
 
             return Ok(());
@@ -384,13 +395,13 @@ impl<T: Database, C: FrippyClient> Plugin for Quote<T, C> {
         match result {
             Ok(m) => {
                 client
-                    .send_privmsg(&target, &m)
+                    .send_privmsg(&target, m)
                     .context(FrippyErrorKind::Connection)?;
             }
             Err(e) => {
                 let message = e.to_string();
                 client
-                    .send_privmsg(&target, &message)
+                    .send_privmsg(&target, message)
                     .context(FrippyErrorKind::Connection)?;
                 Err(e).context(FrippyErrorKind::Quote)?
             }
@@ -426,6 +437,10 @@ pub mod error {
         /// Invalid index error
         #[fail(display = "Invalid index")]
         InvalidIndex,
+
+        /// Uninitialized randomizer error
+        #[fail(display = "Uninitialized randomizer")]
+        UninitializedRandomizer,
 
         /// No previous command error
         #[fail(display = "No previous command was found for this channel")]

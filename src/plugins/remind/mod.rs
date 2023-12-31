@@ -26,7 +26,7 @@ use frippy_derive::PluginName;
 
 fn get_time() -> NaiveDateTime {
     let tm = time::now().to_timespec();
-    NaiveDateTime::from_timestamp(tm.sec, 0u32)
+    NaiveDateTime::from_timestamp_opt(tm.sec, 0u32).unwrap()
 }
 
 fn get_events<T: Database>(db: &RwLock<T>, in_next: chrono::Duration) -> Vec<database::Event> {
@@ -133,7 +133,7 @@ impl<T: Database + 'static, C: FrippyClient> Remind<T, C> {
 
         let event = database::NewEvent {
             receiver: target,
-            content: &parser.get_message(),
+            content: parser.get_message(),
             author,
             time: &time,
             repeat: parser
@@ -143,11 +143,10 @@ impl<T: Database + 'static, C: FrippyClient> Remind<T, C> {
 
         debug!("New event: {:?}", event);
 
-        Ok(self
-            .events
+        self.events
             .write()
             .insert_event(&event)
-            .map(|id| format!("Created reminder with id {} at {} UTC", id, time))?)
+            .map(|id| format!("Created reminder with id {} at {} UTC", id, time))
     }
 
     fn list(&self, user: &str) -> Result<String, RemindError> {
@@ -229,7 +228,7 @@ impl<T: Database, C: FrippyClient + 'static> Plugin for Remind<T, C> {
     ) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
             client
-                .send_notice(&command.source, &ErrorKind::InvalidCommand.to_string())
+                .send_notice(&command.source, ErrorKind::InvalidCommand.to_string())
                 .context(FrippyErrorKind::Connection)?;
             return Ok(());
         }
@@ -248,13 +247,13 @@ impl<T: Database, C: FrippyClient + 'static> Plugin for Remind<T, C> {
 
         match response {
             Ok(msg) => client
-                .send_notice(&source, &msg)
+                .send_notice(&source, msg)
                 .context(FrippyErrorKind::Connection)?,
             Err(e) => {
                 let message = e.to_string();
 
                 client
-                    .send_notice(&source, &message)
+                    .send_notice(&source, message)
                     .context(FrippyErrorKind::Connection)?;
 
                 Err(e).context(FrippyErrorKind::Remind)?

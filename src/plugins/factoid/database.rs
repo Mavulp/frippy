@@ -77,7 +77,7 @@ impl<S: ::std::hash::BuildHasher + Send + Sync> Database for HashMap<(String, i3
     }
 
     fn count_factoids(&self, name: &str) -> Result<i32, FactoidError> {
-        Ok(self.iter().filter(|&(&(ref n, _), _)| n == name).count() as i32)
+        Ok(self.iter().filter(|&((n, _), _)| n == name).count() as i32)
     }
 }
 

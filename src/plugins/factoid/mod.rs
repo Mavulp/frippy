@@ -29,7 +29,7 @@ use failure::{format_err, ResultExt};
 
 use frippy_derive::PluginName;
 
-static LUA_SANDBOX: &'static str = include_str!("sandbox.lua");
+static LUA_SANDBOX: &str = include_str!("sandbox.lua");
 
 #[derive(PluginName)]
 pub struct Factoid<T: Database, C: Client> {
@@ -59,14 +59,14 @@ impl<T: Database, C: Client> Factoid<T, C> {
             idx: count,
             content,
             author,
-            created: NaiveDateTime::from_timestamp(tm.sec, 0u32),
+            created: NaiveDateTime::from_timestamp_opt(tm.sec, 0u32)
+                .expect("fails after death of universe"),
         };
 
-        Ok(self
-            .factoids
+        self.factoids
             .write()
             .insert_factoid(&factoid)
-            .map(|()| "Successfully added!")?)
+            .map(|()| "Successfully added!")
     }
 
     fn add(&self, command: &mut PluginCommand) -> Result<&str, FactoidError> {
@@ -77,7 +77,7 @@ impl<T: Database, C: Client> Factoid<T, C> {
         let name = command.tokens.remove(0);
         let content = command.tokens.join(" ");
 
-        Ok(self.create_factoid(&name, &content, &command.source)?)
+        self.create_factoid(&name, &content, &command.source)
     }
 
     fn add_from_url(&self, command: &mut PluginCommand) -> Result<&str, FactoidError> {
@@ -92,7 +92,7 @@ impl<T: Database, C: Client> Factoid<T, C> {
             .request()
             .context(ErrorKind::Download)?;
 
-        Ok(self.create_factoid(&name, &content, &command.source)?)
+        self.create_factoid(&name, &content, &command.source)
     }
 
     fn remove(&self, command: &mut PluginCommand) -> Result<&str, FactoidError> {
@@ -139,7 +139,7 @@ impl<T: Database, C: Client> Factoid<T, C> {
             .get_factoid(name, idx)
             .context(ErrorKind::NotFound)?;
 
-        let mut message = factoid.content.replace("\n", "|").replace("\r", "");
+        let mut message = factoid.content.replace('\n', "|").replace('\r', "");
         message.truncate(512);
 
         Ok(format!("{}: {}", factoid.name, message))
@@ -180,8 +180,8 @@ impl<T: Database, C: Client> Factoid<T, C> {
             let factoid = self.factoids.read().get_factoid(&name, count - 1)?;
 
             let content = factoid.content;
-            let mut message = if content.starts_with('>') {
-                let content = String::from(&content[1..]);
+            let mut message = if let Some(stripped) = content.strip_prefix('>') {
+                let content = String::from(stripped);
 
                 if content.starts_with('>') {
                     content
@@ -207,7 +207,7 @@ impl<T: Database, C: Client> Factoid<T, C> {
             };
 
             message.truncate(412);
-            Ok(message.replace("\n", "|").replace("\r", ""))
+            Ok(message.replace('\n', "|").replace('\r', ""))
         }
     }
 
@@ -265,7 +265,7 @@ impl<T: Database, C: Client> Factoid<T, C> {
 
             ctx.load(LUA_SANDBOX).set_name(name)?.exec()?;
 
-            Ok(globals.get::<_, Vec<String>>("output")?)
+            globals.get::<_, Vec<String>>("output")
         })?;
 
         Ok(output.join("|"))
@@ -310,7 +310,7 @@ impl<T: Database, C: FrippyClient> Plugin for Factoid<T, C> {
 
             if let Ok(f) = self.exec(c) {
                 client
-                    .send_privmsg(&message.response_target().unwrap(), &f)
+                    .send_privmsg(message.response_target().unwrap(), f)
                     .context(FrippyErrorKind::Connection)?;
             }
         }
@@ -348,13 +348,13 @@ impl<T: Database, C: FrippyClient> Plugin for Factoid<T, C> {
         match result {
             Ok(m) => {
                 client
-                    .send_privmsg(&target, &m)
+                    .send_privmsg(&target, m)
                     .context(FrippyErrorKind::Connection)?;
             }
             Err(e) => {
                 let message = e.to_string();
                 client
-                    .send_privmsg(&target, &message)
+                    .send_privmsg(&target, message)
                     .context(FrippyErrorKind::Connection)?;
                 Err(e).context(FrippyErrorKind::Factoid)?
             }

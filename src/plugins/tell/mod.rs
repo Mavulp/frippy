@@ -72,21 +72,18 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
                 option.and_then(|users| {
                     users
                         .into_iter()
-                        .find(|user| user.get_nickname().eq_ignore_ascii_case(&receiver))
+                        .find(|user| user.get_nickname().eq_ignore_ascii_case(receiver))
                 })
             };
 
             if channels
                 .iter()
-                .map(|channel| client.list_users(&channel))
+                .map(|channel| client.list_users(channel))
                 .map(find_receiver)
                 .any(|option| option.is_some())
+                && !online.contains(&receiver)
             {
-                if !online.contains(&receiver) {
-                    // online.push(receiver);
-                }
-                // TODO Change this when https://github.com/aatxe/irc/issues/136 gets resolved
-                //continue;
+                // online.push(receiver);
             }
 
             let tm = time::now().to_timespec();
@@ -94,7 +91,7 @@ impl<T: Database, C: FrippyClient> Tell<T, C> {
             let tell = database::NewTellMessage {
                 sender: &sender,
                 receiver: &receiver.to_lowercase(),
-                time: NaiveDateTime::from_timestamp(tm.sec, 0u32),
+                time: NaiveDateTime::from_timestamp_opt(tm.sec, 0u32).unwrap(),
                 message: &message,
             };
 
@@ -229,7 +226,7 @@ impl<T: Database, C: FrippyClient> Plugin for Tell<T, C> {
     fn command(&self, client: &Self::Client, command: PluginCommand) -> Result<(), FrippyError> {
         if command.tokens.is_empty() {
             client
-                .send_privmsg(&command.target, &self.invalid_command())
+                .send_privmsg(&command.target, self.invalid_command())
                 .context(FrippyErrorKind::Connection)?;
             return Ok(());
         }
@@ -238,14 +235,14 @@ impl<T: Database, C: FrippyClient> Plugin for Tell<T, C> {
 
         match command.tokens[0].as_ref() {
             "help" => client
-                .send_privmsg(&target, &self.help())
+                .send_privmsg(&target, self.help())
                 .context(FrippyErrorKind::Connection),
             _ => match self.tell_command(client, command) {
                 Ok(msg) => client
-                    .send_privmsg(&target, &msg)
+                    .send_privmsg(&target, msg)
                     .context(FrippyErrorKind::Connection),
                 Err(e) => client
-                    .send_privmsg(&target, &e.to_string())
+                    .send_privmsg(&target, e.to_string())
                     .context(FrippyErrorKind::Connection),
             },
         }?;

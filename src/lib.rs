@@ -174,6 +174,7 @@ impl<'a> Bot<'a> {
     }
 }
 
+#[allow(clippy::result_large_err)] // Stupid library errortype
 fn process_msg<C>(
     client: &C,
     plugins: &mut ThreadedPlugins<C>,
@@ -200,7 +201,7 @@ where
             if let Some(ignore) = options.get("bridge_ignore_regex") {
                 // FIXME store regex and remove unwrap
                 let re = Regex::new(ignore).unwrap();
-                if re.is_match(&content) {
+                if re.is_match(content) {
                     return Ok(());
                 }
             }
@@ -208,7 +209,7 @@ where
             if let Some(re_str) = options.get("bridge_regex") {
                 // FIXME store regex and remove unwrap
                 let re = Regex::new(re_str).unwrap();
-                if let Some(caps) = re.captures(&content) {
+                if let Some(caps) = re.captures(content) {
                     if bridge_user.is_none() {
                         bridge_user = caps.name("username").map(|c| c.as_str().to_owned());
                     }
@@ -224,7 +225,7 @@ where
                     .map(|s| s.to_lowercase())
                     .as_deref()
             {
-                bridge_user = bridge_user.replace("\u{200b}", "");
+                bridge_user = bridge_user.replace('\u{200b}', "");
             }
             message.prefix = message.prefix.map(|s| s.replace(&nick, &bridge_user));
         }
@@ -356,8 +357,8 @@ impl<C: FrippyClient> fmt::Display for ThreadedPlugins<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let plugin_names = self
             .plugins
-            .iter()
-            .map(|(_, p)| p.name().to_owned())
+            .values()
+            .map(|p| p.name().to_owned())
             .collect::<Vec<String>>();
         write!(f, "{}", plugin_names.join(", "))
     }

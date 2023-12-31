@@ -46,7 +46,7 @@ fn expand_error(ast: &syn::DeriveInput) -> quote::Tokens {
     let mut name = None;
     for attr in &ast.attrs {
         if let Some(syn::Meta::NameValue(name_value)) = attr.interpret_meta() {
-            if "error" == name_value.ident.to_string() {
+            if name_value.ident == "error" {
                 if let syn::Lit::Str(lit) = name_value.lit {
                     name = Some(lit.value());
                 }

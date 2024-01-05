@@ -47,7 +47,7 @@ impl<T: Database, C: FrippyClient> Plugin for Counter<T, C> {
     type Client = C;
     fn execute(&self, _: &Self::Client, message: &Message) -> ExecutionStatus {
         if let Command::PRIVMSG(_, content) = message.command.clone() {
-            if content.contains(' ') {
+            if content.contains(' ') || !content.is_char_boundary(content.len() - 2) {
                 return ExecutionStatus::Done;
             }
             if ["++", "--", "=="].contains(&&content[content.len() - 2..]) {

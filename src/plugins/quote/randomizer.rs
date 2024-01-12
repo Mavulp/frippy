@@ -1,5 +1,4 @@
 use rand::prelude::SliceRandom;
-const RANDOM_INDEX_SIZE: usize = 64;
 
 pub(crate) struct RandomIndex {
     count: i32,
@@ -37,7 +36,7 @@ impl RandomIndex {
         self.list.get(self.local_index)
     }
 
-    pub fn update_count(&mut self, new_count: i32) {
+    pub fn _update_count(&mut self, new_count: i32) {
         self.count = new_count;
     }
 
@@ -46,8 +45,7 @@ impl RandomIndex {
     }
 
     fn generate_list(count: i32) -> Vec<i32> {
-        let size = count.min(RANDOM_INDEX_SIZE as i32);
-        let mut numbers: Vec<i32> = (1..size + 1).collect();
+        let mut numbers: Vec<i32> = (1..=count).collect();
         numbers.shuffle(&mut rand::thread_rng());
         numbers
     }
